@@ -8,6 +8,7 @@ function newGame() {
   popups = [];
   particles = [];
   buildLanes();
+  resetPickups();
   startAttempt();
   startCountdown();
   updateHud();
@@ -25,11 +26,17 @@ function startAttempt() {
   resetPlayer();
   timeLeft = TIME_LIMIT;
   lastTick = 0;
+  slowTimer = 0;
+  invulnTimer = 0;
+}
+
+function addPopup(text, x, y) {
+  popups.push({ text, x, y, t: 1 });
 }
 
 function addScore(points, x, y) {
   score += points;
-  popups.push({ text: `+${points}`, x, y, t: 1 });
+  addPopup(`+${points}`, x, y);
   updateHud();
 }
 
@@ -102,16 +109,20 @@ function update(dt) {
       // Turn smoothly toward the direction of travel (along the shorter way round).
       const turn = Math.atan2(Math.sin(player.angle - player.shownAngle), Math.cos(player.angle - player.shownAngle));
       player.shownAngle += turn * Math.min(1, dt * 14);
-      lanes.forEach(l => updateLane(l, dt));
+      const trafficDt = slowTimer > 0 ? dt * SLOW_FACTOR : dt;   // slow-traffic power-up
+      lanes.forEach(l => updateLane(l, trafficDt));
       honkAtPlayer();
-      if (level >= EMERGENCY_LEVEL && (emergencyTimer -= dt) <= 0) dispatchEmergency();
+      if (level >= EMERGENCY_LEVEL && (emergencyTimer -= trafficDt) <= 0) dispatchEmergency();
+      updatePickups(dt);
 
       timeLeft -= dt;
       const sec = Math.ceil(timeLeft);
       if (sec <= 5 && sec > 0 && sec !== lastTick) { lastTick = sec; sfx.tick(); }
 
-      const hit = hitsCar();
-      if (hit) {
+      const hit = invulnTimer > 0 ? null : hitsCar();
+      if (hit && player.shield) {
+        breakShield(hit);
+      } else if (hit) {
         loseLife('car', hit);
       } else if (timeLeft <= 0) {
         loseLife('time');
@@ -164,6 +175,7 @@ function update(dt) {
         level++;
         levelProgress = 0;
         buildLanes();
+        resetPickups();
         startAttempt();
         startCountdown();
         updateHud();

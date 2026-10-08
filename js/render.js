@@ -202,7 +202,9 @@ function drawPlayer() {
   ctx.ellipse(player.x + 2, player.y + 3, 12 - hop / 3, 8 - hop / 4, 0, 0, Math.PI * 2);
   ctx.fill();
 
+  const now = performance.now();
   ctx.save();
+  if (invulnTimer > 0 && Math.floor(now / 80) % 2) ctx.globalAlpha = 0.35;   // blink while protected
   ctx.translate(player.x, player.y - hop);
   ctx.rotate(player.shownAngle + (crashed ? player.spin : 0)); // sprite is drawn facing up
 
@@ -219,6 +221,7 @@ function drawPlayer() {
   ellipse(0, -1, 5.5, 5.5, '#f0c08a');         // head (face toward the front)
   ellipse(0, 0.5, 5.5, 4.5, '#6b4226');        // hair
   ctx.restore();
+  if (player.shield) drawShield(player.x, player.y - hop, now);
 
   if (crashed) {
     ctx.fillStyle = `rgba(255,60,60,${stateTimer / 2})`;
@@ -346,9 +349,11 @@ function draw() {
   drawReversibleLanes(now);
   drawParticles(true);                       // exhaust, beneath the vehicles
   drawEmergencyGlow(now);
+  drawPickups(now);                          // lying on the road; vehicles drive over them
   for (const lane of lanes) for (const c of lane.cars) drawCar(c, lane.y, lane.dir, now);
   drawEmergencyWarnings(now);
   if (state !== 'title') {
+    drawPowerUpStatus();
     drawPlayer();
     drawTimer(now);
   }
@@ -356,7 +361,7 @@ function draw() {
   ctx.restore();
 
   if (state === 'title') {
-    overlay('Road Crossing', 'Cross before the clock runs out', 'Press Space (or tap) to start');
+    overlay('Road Crossing', 'Cross before the clock runs out', 'Grab bonuses: coins ⏱ 🛡 🐢 ❤️', 'Press Space (or tap) to start');
   } else if (state === 'paused') {
     overlay('Paused', 'Press P to continue');
   } else if (state === 'levelup') {

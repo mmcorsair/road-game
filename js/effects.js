@@ -43,6 +43,23 @@ const fx = {
     }
   },
 
+  sparkle(x, y, color) {
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2, speed = rand(80, 160);
+      addParticle({ kind: 'dot', x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
+                    life: rand(0.35, 0.6), size: rand(1.5, 3), color: i % 2 ? color : '#ffffff', drag: 4 });
+    }
+  },
+
+  shieldBreak(x, y) {
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2, speed = rand(120, 220);
+      addParticle({ kind: 'shard', x: x + Math.cos(a) * 18, y: y + Math.sin(a) * 18,
+                    vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, life: rand(0.4, 0.7), size: rand(4, 7),
+                    color: '#8fd3ff', drag: 3, spin: rand(-12, 12), rot: a });
+    }
+  },
+
   exhaust(x, y, dir) {
     addParticle({ kind: 'smoke', x, y: y + rand(-2, 2), vx: -dir * rand(10, 30), vy: rand(-6, 6), life: 0.8,
                   size: 2, grow: 6, color: '#d2d2d2', alpha: 0.16, drag: 1.5, under: true });

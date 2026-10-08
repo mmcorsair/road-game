@@ -97,6 +97,18 @@ const sfx = {
   levelUp() {
     [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.28, { type: 'triangle', gain: 0.22, delay: i * 0.11 }));
   },
+  pickup(type) {
+    if (type === 'coin') {
+      tone(988, 0.08, { gain: 0.08 });
+      tone(1319, 0.2, { gain: 0.08, delay: 0.07 });
+    } else {
+      [659, 880, 1175].forEach((f, i) => tone(f, 0.16, { type: 'triangle', gain: 0.18, delay: i * 0.06 }));
+    }
+  },
+  shieldBreak() {
+    noiseBurst(0.25, { gain: 0.3, freq: 6000, endFreq: 800 });
+    tone(700, 0.3, { type: 'triangle', gain: 0.2, endFreq: 200 });
+  },
   count() { tone(660, 0.12, { type: 'triangle', gain: 0.18 }); },
   point() { tone(1200, 0.07, { type: 'sine', gain: 0.1 }); },
   tick()  { tone(1600, 0.04, { gain: 0.06 }); },

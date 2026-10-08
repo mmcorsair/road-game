@@ -16,6 +16,13 @@ const TIME_LIMIT = 30;                    // seconds per attempt; running out co
 const PROGRESS_POINTS = 10;               // per lane crossed for the first time in a level
 const LEVEL_POINTS = 100;                 // × level, for reaching the finish
 const TIME_POINTS = 10;                   // per second left on the clock at the finish
+const PICKUP_MIN = 4, PICKUP_MAX = 8;    // seconds between pickups appearing (at most 2 on the road)
+const PICKUP_LIFE = 8;                   // seconds a pickup stays before vanishing
+const COIN_POINTS = 50;
+const TIME_PICKUP = 10;                   // seconds added by a clock pickup
+const MAX_LIVES = 5;
+const SLOW_TIME = 5, SLOW_FACTOR = 0.4;   // slow-traffic power-up: duration and speed multiplier
+const SHIELD_GRACE = 1.5;                 // seconds of safety after a shield breaks
 const CAR_COLORS =['#e74c3c', '#3498db', '#f1c40f', '#9b59b6', '#1abc9c', '#e67e22', '#ecf0f1', '#2ecc71'];
 
 const rand = (a, b) => a + Math.random() * (b - a);
