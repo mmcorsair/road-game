@@ -10,6 +10,8 @@ const BIKE_LEVEL = 2;                     // motorbikes appear from this level
 const EMERGENCY_LEVEL = 3;                // emergency vehicles appear from this level
 const EMERGENCY_MIN = 10, EMERGENCY_MAX = 18;  // seconds between emergency vehicles
 const EMERGENCY_WARN = 2.5;               // siren + flashing warning this long before it enters
+const COUNTDOWN_STEP = 0.7;               // seconds per number of the 3-2-1 countdown before each level
+const LEVELUP_TIME = 2.2;                 // seconds the level-complete celebration lasts
 const TIME_LIMIT = 30;                    // seconds per attempt; running out costs a life
 const PROGRESS_POINTS = 10;               // per lane crossed for the first time in a level
 const LEVEL_POINTS = 100;                 // × level, for reaching the finish

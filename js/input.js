@@ -22,15 +22,20 @@ function startOrResume() {
   return false;
 }
 
+function canPause() {
+  return state === 'playing' || state === 'countdown';
+}
+
 // Pausing also suspends audio, so a siren picks up exactly where it left off.
 function setPaused(on) {
-  state = on ? 'paused' : 'playing';
+  if (on) pausedFrom = state;
+  state = on ? 'paused' : pausedFrom;
   if (sound.ctx) on ? sound.ctx.suspend() : sound.ctx.resume();
 }
 
 function pauseIfPlaying() {
   releaseKeys();
-  if (state === 'playing') setPaused(true);
+  if (canPause()) setPaused(true);
 }
 
 function vibrate(ms) {
@@ -55,7 +60,7 @@ addEventListener('keydown', e => {
   if (e.key === 'm' || e.key === 'M') sound.toggleMute();
   if ((e.key === ' ' || e.key === 'Enter') && (state === 'title' || state === 'gameover')) newGame();
   if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
-    if (state === 'playing') setPaused(true);
+    if (canPause()) setPaused(true);
     else if (state === 'paused') setPaused(false);
   }
 });
@@ -97,7 +102,7 @@ for (const id of ['pauseBtn', 'muteBtn', 'fullscreenBtn']) {
   document.getElementById(id).addEventListener('pointerdown', noFocus);
 }
 document.getElementById('pauseBtn').addEventListener('click', () => {
-  if (state === 'playing') setPaused(true);
+  if (canPause()) setPaused(true);
   else startOrResume();
 });
 document.getElementById('muteBtn').addEventListener('click', () => {

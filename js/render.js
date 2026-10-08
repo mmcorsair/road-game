@@ -73,7 +73,10 @@ function drawReversibleLanes(now) {
       color = '#f4b400';
     }
     ctx.fillStyle = color;
-    for (const x of [W * 0.15, W * 0.5, W * 0.85]) {
+    // Normal arrows slowly slide with the traffic; warning arrows stay put and blink.
+    const spacing = W * 0.35;
+    const shift = lane.draining ? 0 : ((now / 1000 * 25) % spacing) * dir;
+    for (let x = W * 0.15 - spacing + shift; x < W + spacing; x += spacing) {
       ctx.save();
       ctx.translate(x, lane.y);
       ctx.scale(dir, 1);
@@ -186,10 +189,22 @@ function drawEmergencyWarnings(now) {
 
 function drawPlayer() {
   const crashed = state === 'hit' && hitReason === 'car';
+
+  // Happy hops while celebrating a completed level.
+  let hop = 0;
+  if (state === 'levelup') {
+    const t = LEVELUP_TIME - stateTimer;
+    hop = Math.abs(Math.sin(t * 9)) * 8 * Math.max(0, 1 - t / 1.5);
+  }
+
+  ctx.fillStyle = 'rgba(0,0,0,.25)';                         // shadow stays on the ground
+  ctx.beginPath();
+  ctx.ellipse(player.x + 2, player.y + 3, 12 - hop / 3, 8 - hop / 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
   ctx.save();
-  ctx.translate(player.x, player.y);
-  if (crashed) ctx.rotate((1.2 - stateTimer) * 10);          // spin after being bumped
-  else ctx.rotate(player.angle);                             // sprite is drawn facing up
+  ctx.translate(player.x, player.y - hop);
+  ctx.rotate(player.shownAngle + (crashed ? player.spin : 0)); // sprite is drawn facing up
 
   const swing = Math.sin(player.walk) * 5;
   const ellipse = (x, y, rx, ry, color) => {
@@ -233,13 +248,71 @@ function drawPopups() {
   ctx.textBaseline = 'middle';
   ctx.lineWidth = 3;
   for (const p of popups) {
+    const age = 1 - p.t;
+    const scale = 1 + 0.6 * Math.max(0, 1 - age * 6);       // pops in large, settles quickly
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.scale(scale, scale);
     ctx.globalAlpha = Math.min(1, p.t * 2);
     ctx.strokeStyle = 'rgba(0,0,0,.6)';
-    ctx.strokeText(p.text, p.x, p.y);
+    ctx.strokeText(p.text, 0, 0);
     ctx.fillStyle = '#ffe36e';
-    ctx.fillText(p.text, p.x, p.y);
+    ctx.fillText(p.text, 0, 0);
+    ctx.restore();
   }
-  ctx.globalAlpha = 1;
+}
+
+// Red/blue light thrown onto the road around emergency vehicles.
+function drawEmergencyGlow(now) {
+  const red = Math.floor(now / 120) % 2;
+  for (const lane of lanes) {
+    for (const c of lane.cars) {
+      if (c.kind !== 'emergency') continue;
+      const g = ctx.createRadialGradient(c.x, lane.y, 5, c.x, lane.y, 70);
+      g.addColorStop(0, red ? 'rgba(255,40,40,.35)' : 'rgba(50,110,255,.35)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(c.x - 70, lane.y - 70, 140, 140);
+    }
+  }
+}
+
+// Big 3-2-1 numbers that zoom in, then "GO!".
+function drawCountdown() {
+  let text, t, color;
+  if (state === 'countdown') {
+    const n = Math.ceil(stateTimer / COUNTDOWN_STEP);
+    t = 1 - (stateTimer - (n - 1) * COUNTDOWN_STEP) / COUNTDOWN_STEP;   // 0 → 1 within each number
+    text = String(n);
+    color = '#ffffff';
+  } else if (goTimer > 0) {
+    t = 1 - goTimer / 0.7;
+    text = 'GO!';
+    color = '#2ecc71';
+  } else {
+    return;
+  }
+  const scale = 1.6 - 0.6 * Math.min(1, t * 4);
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+  ctx.scale(scale, scale);
+  ctx.globalAlpha = t < 0.7 ? 1 : (1 - t) / 0.3;
+  ctx.font = 'bold 80px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = 'rgba(0,0,0,.5)';
+  ctx.strokeText(text, 0, 0);
+  ctx.fillStyle = color;
+  ctx.fillText(text, 0, 0);
+  if (state === 'countdown') {
+    ctx.font = 'bold 20px system-ui, sans-serif';
+    ctx.lineWidth = 4;
+    ctx.strokeText(`Level ${level}`, 0, -62);
+    ctx.fillStyle = '#ffe36e';
+    ctx.fillText(`Level ${level}`, 0, -62);
+  }
+  ctx.restore();
 }
 
 function overlay(title, ...lines) {
@@ -263,9 +336,16 @@ function nextLevelHint() {
 }
 
 function draw() {
-  drawScene();
   const now = performance.now();
+  const [sx, sy] = shakeOffset();
+  ctx.fillStyle = '#1d2330';                 // backdrop revealed at the edges while shaking
+  ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  ctx.translate(sx, sy);
+  drawScene();
   drawReversibleLanes(now);
+  drawParticles(true);                       // exhaust, beneath the vehicles
+  drawEmergencyGlow(now);
   for (const lane of lanes) for (const c of lane.cars) drawCar(c, lane.y, lane.dir, now);
   drawEmergencyWarnings(now);
   if (state !== 'title') {
@@ -273,6 +353,7 @@ function draw() {
     drawTimer(now);
   }
   drawPopups();
+  ctx.restore();
 
   if (state === 'title') {
     overlay('Road Crossing', 'Cross before the clock runs out', 'Press Space (or tap) to start');
@@ -287,4 +368,6 @@ function draw() {
   } else if (state === 'hit' && lives > 0) {
     overlay(hitReason === 'time' ? "Time's up!" : 'Ouch!', `${lives} ${lives === 1 ? 'life' : 'lives'} left`);
   }
+  drawCountdown();
+  drawParticles(false);                      // sparks, debris, confetti on top of everything
 }

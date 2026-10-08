@@ -97,6 +97,7 @@ const sfx = {
   levelUp() {
     [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.28, { type: 'triangle', gain: 0.22, delay: i * 0.11 }));
   },
+  count() { tone(660, 0.12, { type: 'triangle', gain: 0.18 }); },
   point() { tone(1200, 0.07, { type: 'sine', gain: 0.1 }); },
   tick()  { tone(1600, 0.04, { gain: 0.06 }); },
   timeUp() {                            // dissonant buzzer
