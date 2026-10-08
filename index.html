@@ -23,7 +23,7 @@
   <span id="hiscore">Hi 0</span>
 </div>
 <canvas id="game"></canvas>
-<div id="help">↑ / ↓ — move &nbsp;·&nbsp; Space — start &nbsp;·&nbsp; P — pause &nbsp;·&nbsp; M — sound: <span id="sound">on</span></div>
+<div id="help">Arrows / WASD — move &nbsp;·&nbsp; Space — start &nbsp;·&nbsp; P — pause &nbsp;·&nbsp; M — sound: <span id="sound">on</span></div>
 
 <script>
 // ---------- Layout & tuning ----------
@@ -58,7 +58,7 @@ let level = 1, lives = START_LIVES, score = 0, hiScore = loadHiScore(), newHighS
 let timeLeft = TIME_LIMIT, lastTick = 0, levelProgress = 0, levelBonus = null, hitReason = 'car', popups = [];
 let lanes = [], player, state = 'title', stateTimer = 0;
 let emergencyTimer = 0, stopSiren = () => {};
-const keys = { up: false, down: false };
+const keys = { up: false, down: false, left: false, right: false };
 
 function loadHiScore() {
   try { return Number(localStorage.getItem('roadCrossingHiScore')) || 0; } catch { return 0; }
@@ -348,7 +348,7 @@ function silenceSiren() {
 
 // ---------- Player ----------
 function resetPlayer() {
-  player = { x: W / 2, y: H - START_H / 2, facing: -1, walk: 0, lastStep: 0 };
+  player = { x: W / 2, y: H - START_H / 2, angle: 0, walk: 0, lastStep: 0 };
 }
 
 // Cars honk once when they are about to run into the player.
@@ -430,10 +430,13 @@ function update(dt) {
       break;
 
     case 'playing': {
+      const dx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
       const dy = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
-      if (dy) {
-        player.y = Math.min(H - START_H / 2, Math.max(FINISH_H / 2, player.y + dy * PLAYER_SPEED * dt));
-        player.facing = dy;
+      if (dx || dy) {
+        const dist = PLAYER_SPEED * dt / Math.hypot(dx, dy);   // same speed diagonally
+        player.x = Math.min(W - PLAYER_SIZE / 2, Math.max(PLAYER_SIZE / 2, player.x + dx * dist));
+        player.y = Math.min(H - START_H / 2, Math.max(FINISH_H / 2, player.y + dy * dist));
+        player.angle = Math.atan2(dx, -dy);                    // 0 = facing up, clockwise
         player.walk += dt * 12;
         const step = Math.floor(player.walk / Math.PI);   // one footstep per half walk cycle
         if (step !== player.lastStep) { player.lastStep = step; sfx.step(); }
@@ -691,7 +694,7 @@ function drawPlayer() {
   ctx.save();
   ctx.translate(player.x, player.y);
   if (crashed) ctx.rotate((1.2 - stateTimer) * 10);          // spin after being bumped
-  else if (player.facing > 0) ctx.rotate(Math.PI);           // sprite is drawn facing up
+  else ctx.rotate(player.angle);                             // sprite is drawn facing up
 
   const swing = Math.sin(player.walk) * 5;
   const ellipse = (x, y, rx, ry, color) => {
@@ -795,6 +798,8 @@ function draw() {
 function setKey(e, down) {
   if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') keys.up = down;
   else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keys.down = down;
+  else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = down;
+  else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = down;
   else return false;
   return true;
 }
@@ -811,7 +816,7 @@ addEventListener('keydown', e => {
 });
 addEventListener('keyup', e => setKey(e, false));
 addEventListener('blur', () => {
-  keys.up = keys.down = false;
+  releaseKeys();
   if (state === 'playing') setPaused(true);
 });
 
@@ -821,17 +826,32 @@ function setPaused(on) {
   if (sound.ctx) on ? sound.ctx.suspend() : sound.ctx.resume();
 }
 
-// Touch / mouse: hold above the man to walk up, below him to walk down.
+function releaseKeys() {
+  keys.up = keys.down = keys.left = keys.right = false;
+}
+
+// Touch / mouse: hold (and drag) anywhere — the man walks toward the pointer.
+let pointerHeld = false;
+function steerToPointer(e) {
+  const rect = canvas.getBoundingClientRect();
+  const dx = (e.clientX - rect.left) * (W / rect.width) - player.x;
+  const dy = (e.clientY - rect.top) * (H / rect.height) - player.y;
+  const dead = 12;                     // stop when the pointer is roughly on the man
+  keys.left = dx < -dead;
+  keys.right = dx > dead;
+  keys.up = dy < -dead;
+  keys.down = dy > dead;
+}
 canvas.addEventListener('pointerdown', e => {
   sound.init();
   if (state === 'title' || state === 'gameover') { newGame(); return; }
   if (state === 'paused') { setPaused(false); return; }
-  const rect = canvas.getBoundingClientRect();
-  const y = (e.clientY - rect.top) * (H / rect.height);
-  keys.up = y < player.y;
-  keys.down = !keys.up;
+  pointerHeld = true;
+  steerToPointer(e);
 });
-addEventListener('pointerup', () => { keys.up = keys.down = false; });
+canvas.addEventListener('pointermove', e => { if (pointerHeld) steerToPointer(e); });
+addEventListener('pointerup', () => { pointerHeld = false; releaseKeys(); });
+addEventListener('pointercancel', () => { pointerHeld = false; releaseKeys(); });
 
 // ---------- Main loop ----------
 buildLanes();
