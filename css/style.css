@@ -1,0 +1,8 @@
+:root { --w: min(480px, 95vw, calc((100vh - 110px) * 0.75)); }
+html, body { margin: 0; height: 100%; background: #1d2330; color: #eee;
+             font-family: system-ui, -apple-system, sans-serif; }
+body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+#hud { display: flex; justify-content: space-between; width: var(--w); font-size: 18px; }
+canvas { width: var(--w); aspect-ratio: 3 / 4; border-radius: 8px;
+         box-shadow: 0 8px 30px rgba(0, 0, 0, .5); touch-action: none; }
+#help { font-size: 13px; opacity: .7; text-align: center; }

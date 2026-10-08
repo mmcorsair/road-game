@@ -1,0 +1,133 @@
+// ---------- Game flow ----------
+function newGame() {
+  level = 1;
+  lives = START_LIVES;
+  score = 0;
+  newHighScore = false;
+  levelProgress = 0;
+  popups = [];
+  buildLanes();
+  startAttempt();
+  state = 'playing';
+  updateHud();
+  sfx.start();
+}
+
+// Every attempt (new level or after losing a life) starts on the sidewalk with a full clock.
+function startAttempt() {
+  resetPlayer();
+  timeLeft = TIME_LIMIT;
+  lastTick = 0;
+}
+
+function addScore(points, x, y) {
+  score += points;
+  popups.push({ text: `+${points}`, x, y, t: 1 });
+  updateHud();
+}
+
+function loseLife(reason) {
+  lives--;
+  hitReason = reason;
+  state = 'hit';
+  stateTimer = 1.2;
+  updateHud();
+  // Cancel any announced emergency vehicle, since traffic freezes and the siren would be out of sync.
+  silenceSiren();
+  for (const l of lanes) l.emergency = null;
+  if (reason === 'car') sfx.crash(); else sfx.timeUp();
+}
+
+function update(dt) {
+  if (state !== 'paused') {
+    for (const p of popups) { p.t -= dt; p.y -= 30 * dt; }
+    popups = popups.filter(p => p.t > 0);
+  }
+
+  switch (state) {
+    case 'title':
+    case 'gameover':
+      lanes.forEach(l => updateLane(l, dt));
+      break;
+
+    case 'playing': {
+      const dx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+      const dy = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
+      if (dx || dy) {
+        const dist = PLAYER_SPEED * dt / Math.hypot(dx, dy);   // same speed diagonally
+        player.x = Math.min(W - PLAYER_SIZE / 2, Math.max(PLAYER_SIZE / 2, player.x + dx * dist));
+        player.y = Math.min(H - START_H / 2, Math.max(FINISH_H / 2, player.y + dy * dist));
+        player.angle = Math.atan2(dx, -dy);                    // 0 = facing up, clockwise
+        player.walk += dt * 12;
+        const step = Math.floor(player.walk / Math.PI);   // one footstep per half walk cycle
+        if (step !== player.lastStep) { player.lastStep = step; sfx.step(); }
+      }
+      lanes.forEach(l => updateLane(l, dt));
+      honkAtPlayer();
+      if (level >= EMERGENCY_LEVEL && (emergencyTimer -= dt) <= 0) dispatchEmergency();
+
+      timeLeft -= dt;
+      const sec = Math.ceil(timeLeft);
+      if (sec <= 5 && sec > 0 && sec !== lastTick) { lastTick = sec; sfx.tick(); }
+
+      if (hitsCar()) {
+        loseLife('car');
+      } else if (timeLeft <= 0) {
+        loseLife('time');
+      } else if (player.y + PLAYER_SIZE / 2 < FINISH_H) {
+        const levelPoints = LEVEL_POINTS * level;
+        const timePoints = Math.ceil(timeLeft) * TIME_POINTS;
+        levelBonus = { levelPoints, timePoints };
+        addScore(levelPoints + timePoints, player.x, player.y);
+        state = 'levelup';
+        stateTimer = 2.2;
+        silenceSiren();
+        sfx.levelUp();
+      } else {
+        // Points for each lane crossed for the first time this level (not re-awarded after a crash).
+        const crossed = lanes.filter(l => player.y < l.y - LANE_H / 2).length;
+        if (crossed > levelProgress) {
+          addScore((crossed - levelProgress) * PROGRESS_POINTS, player.x + 28, player.y);
+          levelProgress = crossed;
+          sfx.point();
+        }
+      }
+      break;
+    }
+
+    case 'hit':                       // traffic freezes briefly after an accident
+      stateTimer -= dt;
+      if (stateTimer <= 0) {
+        if (lives > 0) { startAttempt(); state = 'playing'; }
+        else {
+          state = 'gameover';
+          newHighScore = score > hiScore;
+          saveHiScore();
+          updateHud();
+          sfx.gameOver();
+        }
+      }
+      break;
+
+    case 'levelup':
+      lanes.forEach(l => updateLane(l, dt));
+      stateTimer -= dt;
+      if (stateTimer <= 0) {
+        level++;
+        levelProgress = 0;
+        buildLanes();
+        startAttempt();
+        state = 'playing';
+        updateHud();
+      }
+      break;
+  }
+}
+
+function updateHud() {
+  document.getElementById('level').textContent = `Level ${level}`;
+  document.getElementById('score').textContent = `Score ${score}`;
+  document.getElementById('lives').textContent = '❤️'.repeat(Math.max(0, lives)) || '💀';
+  document.getElementById('hiscore').textContent = `Hi ${Math.max(hiScore, score)}`;
+  document.getElementById('sound').textContent = sound.muted ? 'off' : 'on';
+}
