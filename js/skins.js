@@ -152,7 +152,7 @@ function checkSkinUnlocks(oldScore) {
   for (const skin of SKINS) {
     if (skin.score > hiScore && oldScore < skin.score && score >= skin.score) {
       skinsUnlockedThisGame.push(skin.name);
-      banner = { text: `New skin unlocked: ${skin.name}!`, t: 2.5 };
+      banner = { text: `🎉 New skin unlocked: ${skin.name}!`, t: 2.5 };
       sfx.levelUp();
     }
   }
@@ -160,18 +160,20 @@ function checkSkinUnlocks(oldScore) {
 
 function drawBanner() {
   if (!banner) return;
+  banner.max ??= banner.t;                               // remember the full duration on first draw
   const t = banner.t;
-  const slide = Math.min(1, (2.5 - t) * 5, t * 3);      // slide in, then out
+  const slide = Math.min(1, (banner.max - t) * 5, t * 3);   // slide in, then out
   ctx.save();
   ctx.globalAlpha = slide;
   ctx.translate(W / 2, FINISH_H + 26 - (1 - slide) * 20);
-  ctx.fillStyle = 'rgba(0,0,0,.7)';
-  ctx.beginPath(); ctx.roundRect(-150, -18, 300, 36, 18); ctx.fill();
-  ctx.fillStyle = '#ffe36e';
   ctx.font = 'bold 16px system-ui, sans-serif';
+  const width = Math.min(W - 20, ctx.measureText(banner.text).width + 40);
+  ctx.fillStyle = 'rgba(0,0,0,.7)';
+  ctx.beginPath(); ctx.roundRect(-width / 2, -18, width, 36, 18); ctx.fill();
+  ctx.fillStyle = '#ffe36e';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`🎉 ${banner.text}`, 0, 1);
+  ctx.fillText(banner.text, 0, 1);
   ctx.restore();
 }
 

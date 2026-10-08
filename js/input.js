@@ -62,6 +62,8 @@ addEventListener('keydown', e => {
     return;
   }
   if (e.key === 'k' || e.key === 'K') { openSkinPicker(); return; }
+  if ((e.key === 'c' || e.key === 'C') && (state === 'title' || state === 'gameover')) { newGame('daily'); return; }
+  if ((e.key === 'r' || e.key === 'R') && state === 'gameover' && mode === 'daily') { shareDaily(); return; }
   if (setKey(e, true) || e.key === ' ') e.preventDefault();
   if (e.key === 'm' || e.key === 'M') sound.toggleMute();
   if ((e.key === ' ' || e.key === 'Enter') && (state === 'title' || state === 'gameover')) newGame();

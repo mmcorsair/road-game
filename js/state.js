@@ -4,6 +4,7 @@ let timeLeft = TIME_LIMIT, lastTick = 0, levelProgress = 0, levelBonus = null, h
 let lanes = [], player, state = 'title', stateTimer = 0;
 let emergencyTimer = 0, stopSiren = () => {};
 let goTimer = 0, pausedFrom = 'playing';
+let mode = 'normal';            // 'normal' or 'daily' (see daily.js)
 const keys = { up: false, down: false, left: false, right: false };
 
 function loadHiScore() {

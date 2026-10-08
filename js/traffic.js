@@ -5,7 +5,7 @@ function pickGap() {
 }
 
 function pickKind() {
-  const r = Math.random();
+  const r = gameRandom();
   if (level >= BIKE_LEVEL && r < 0.15) return 'bike';
   if (r > 0.8) return 'truck';
   return 'car';
@@ -25,7 +25,7 @@ function spawnVehicle(lane, kind) {
   const c = {
     kind, w: spec.w, h: spec.h, speed, v: speed, braking: false,
     x: lane.dir > 0 ? -spec.w / 2 : W + spec.w / 2,
-    color: CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)],
+    color: pickFrom(CAR_COLORS),
   };
   lane.cars.push(c);
   return c;
@@ -33,6 +33,7 @@ function spawnVehicle(lane, kind) {
 
 function buildLanes() {
   silenceSiren();
+  seedRandomness();                // the daily challenge makes every level's traffic the same for everyone
   lanes = [];
   emergencyTimer = rand(EMERGENCY_MIN, EMERGENCY_MAX) / 2;
   const speedMul = 1 + 0.18 * (level - 1);
@@ -49,9 +50,9 @@ function buildLanes() {
   // Railway lanes (from RAIL_LEVEL) are picked first, so a lane is never both.
   const reversibleCount = Math.min(1 + Math.floor((level - 1) / 2), 4);
   const railCount = railLaneCount();
-  const shuffled = [...lanes].sort(() => Math.random() - 0.5);
-  shuffled.slice(0, railCount).forEach(makeRailLane);
-  for (const lane of shuffled.slice(railCount, railCount + reversibleCount)) {
+  const order = shuffled(lanes);
+  order.slice(0, railCount).forEach(makeRailLane);
+  for (const lane of order.slice(railCount, railCount + reversibleCount)) {
     lane.reversible = true;
     lane.switchTimer = rand(REVERSE_MIN, REVERSE_MAX);
   }
@@ -134,7 +135,7 @@ function dispatchEmergency() {
   emergencyTimer = rand(EMERGENCY_MIN, EMERGENCY_MAX);
   const candidates = lanes.filter(l => !l.reversible && !l.emergency && !l.rail);
   if (!candidates.length) return;
-  const lane = candidates[Math.floor(Math.random() * candidates.length)];
+  const lane = pickFrom(candidates);
   lane.emergency = { t: EMERGENCY_WARN };
   const crossTime = (W + 150) / Math.max(260, lane.speed * 2.2);
   stopSiren = sfx.siren(EMERGENCY_WARN + crossTime + 0.5, -lane.dir);

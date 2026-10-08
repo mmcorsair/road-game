@@ -20,6 +20,7 @@
 </div>
 <div id="stage">
   <canvas id="game"></canvas>
+  <button id="shareBtn" tabindex="-1" hidden>📤 Share result</button>
   <!-- On-screen controls, shown on touch devices. &#xFE0E; keeps the arrows from turning into emoji. -->
   <div id="controls">
     <div class="pad" id="pad-left">
@@ -31,6 +32,7 @@
       <button class="btn small" id="muteBtn" tabindex="-1" aria-label="Sound on/off">🔊</button>
       <button class="btn small" id="fullscreenBtn" tabindex="-1" aria-label="Fullscreen" hidden>&#x26F6;</button>
       <button class="btn small" id="skinsBtn" tabindex="-1" aria-label="Skins">👕</button>
+      <button class="btn small" id="dailyBtn" tabindex="-1" aria-label="Daily challenge">📅</button>
     </div>
     <div class="pad" id="pad-right">
       <button class="btn" data-dir="up" tabindex="-1" aria-label="Up">&#x25B2;&#xFE0E;</button>
@@ -39,7 +41,7 @@
   </div>
 </div>
 <div id="help">
-  <span class="kb-help">Arrows / WASD — move &nbsp;·&nbsp; Space — start &nbsp;·&nbsp; P — pause &nbsp;·&nbsp; M — sound: <span id="sound">on</span> &nbsp;·&nbsp; <button id="skinsLink" class="link" tabindex="-1">👕 K — skins</button></span>
+  <span class="kb-help">Arrows / WASD — move &nbsp;·&nbsp; Space — start &nbsp;·&nbsp; P — pause &nbsp;·&nbsp; M — sound: <span id="sound">on</span> &nbsp;·&nbsp; <button id="skinsLink" class="link" tabindex="-1">👕 K — skins</button> &nbsp;·&nbsp; <button id="dailyLink" class="link" tabindex="-1">📅 C — daily</button></span>
   <span class="touch-help">Tap to start &nbsp;·&nbsp; hold the arrows or drag on the road to move</span>
 </div>
 
@@ -61,6 +63,7 @@
 <script src="js/player.js"></script>
 <script src="js/pickups.js"></script>
 <script src="js/skins.js"></script>
+<script src="js/daily.js"></script>
 <script src="js/game.js"></script>
 <script src="js/render.js"></script>
 <script src="js/input.js"></script>

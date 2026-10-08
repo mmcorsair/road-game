@@ -325,6 +325,8 @@ function overlay(title, ...lines) {
   lines.forEach((line, i) => ctx.fillText(line, W / 2, top + 42 + i * 24));
 }
 
+const touchUI = () => document.body.classList.contains('touch');
+
 function nextLevelHint() {
   if (level + 1 === BIKE_LEVEL) return 'Next: watch out for fast motorbikes!';
   if (level + 1 === RAIL_LEVEL) return 'Next: a railway crossing — mind the lights!';
@@ -356,8 +358,11 @@ function draw() {
   ctx.restore();
 
   if (state === 'title') {
+    const today = loadDailyStats();
     overlay('Road Crossing', 'Cross before the clock runs out', 'Grab bonuses: coins ⏱ 🛡 🐢 ❤️',
-      `Skin: ${currentSkin().name}  ·  👕 to change`, 'Press Space (or tap) to start');
+      `Skin: ${currentSkin().name}  ·  👕 to change`,
+      today.best ? `📅 Today's daily best: ${today.best.score.toLocaleString()}` : '📅 New daily challenge every day!',
+      touchUI() ? 'Tap the road to play  ·  📅 — daily challenge' : 'Space — play  ·  C / 📅 — daily challenge');
   } else if (state === 'paused') {
     overlay('Paused', 'Press P to continue');
   } else if (state === 'levelup') {
@@ -366,12 +371,22 @@ function draw() {
   } else if (state === 'gameover') {
     const unlockedLine = skinsUnlockedThisGame.length
       ? [`👕 Unlocked: ${skinsUnlockedThisGame.join(', ')} — try it on!`] : [];
-    overlay('Game Over', `Score ${score}  ·  level ${level}`,
-      newHighScore ? '🏆 New high score!' : `High score ${hiScore}`, ...unlockedLine, 'Space to play again');
+    if (mode === 'daily' && dailyStats) {
+      const best = dailyStats.best;
+      overlay('Daily challenge over', `Score ${score.toLocaleString()}  ·  level ${level}`,
+        best.score === score ? `📅 Today's best! (try ${dailyStats.attempts})`
+                             : `📅 Today's best: ${best.score.toLocaleString()} (try ${dailyStats.attempts})`,
+        ...unlockedLine, touchUI() ? '📅 — retry  ·  tap the road — normal game' : 'R — share  ·  C — retry  ·  Space — normal game');
+    } else {
+      overlay('Game Over', `Score ${score}  ·  level ${level}`,
+        newHighScore ? '🏆 New high score!' : `High score ${hiScore}`, ...unlockedLine,
+        touchUI() ? 'Tap to play again  ·  📅 — daily challenge' : 'Space — play again  ·  C — daily challenge');
+    }
   } else if (state === 'hit' && lives > 0) {
     overlay(hitReason === 'time' ? "Time's up!" : 'Ouch!', `${lives} ${lives === 1 ? 'life' : 'lives'} left`);
   }
   drawBanner();
   drawCountdown();
+  updateShareButton();
   drawParticles(false);                      // sparks, debris, confetti on top of everything
 }

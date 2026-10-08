@@ -14,7 +14,7 @@ const PICKUP_TYPES = {
 
 function resetPickups() {
   pickups = [];
-  pickupTimer = rand(PICKUP_MIN, PICKUP_MAX) / 2;
+  pickupTimer = pickupRand(PICKUP_MIN, PICKUP_MAX) / 2;
   slowTimer = 0;
   invulnTimer = 0;
 }
@@ -23,7 +23,7 @@ function resetPickups() {
 function pickPickupType() {
   const types = Object.keys(PICKUP_TYPES).filter(t =>
     !(t === 'life' && lives >= MAX_LIVES) && !(t === 'shield' && player.shield));
-  let r = Math.random() * types.reduce((sum, t) => sum + PICKUP_TYPES[t].weight, 0);
+  let r = pickupRandom() * types.reduce((sum, t) => sum + PICKUP_TYPES[t].weight, 0);
   for (const t of types) {
     r -= PICKUP_TYPES[t].weight;
     if (r <= 0) return t;
@@ -32,13 +32,13 @@ function pickPickupType() {
 }
 
 function spawnPickup() {
-  const lane = lanes[Math.floor(Math.random() * lanes.length)];
-  pickups.push({ type: pickPickupType(), x: rand(40, W - 40), y: lane.y, t: PICKUP_LIFE, age: 0 });
+  const lane = pickFrom(lanes, pickupRandom);
+  pickups.push({ type: pickPickupType(), x: pickupRand(40, W - 40), y: lane.y, t: PICKUP_LIFE, age: 0 });
 }
 
 function updatePickups(dt) {
   if ((pickupTimer -= dt) <= 0) {
-    pickupTimer = rand(PICKUP_MIN, PICKUP_MAX);
+    pickupTimer = pickupRand(PICKUP_MIN, PICKUP_MAX);
     if (pickups.length < 2) spawnPickup();
   }
   for (const p of pickups) {

@@ -53,11 +53,11 @@ function updateLaneChanges(lane, dt) {
     const stuck = ahead && c.v < c.speed - 15 &&
       (ahead.x - c.x) * lane.dir - (ahead.w + c.w) / 2 < FOLLOW_DIST * 1.5;
     const chance = (stuck ? 0.9 : Math.min(0.15 + 0.05 * level, 0.45)) * style.eagerness;
-    if (Math.random() > chance) continue;
+    if (gameRandom() > chance) continue;
 
     const options = laneChangeTargets(lane).filter(t => hasRoom(t, c));
     if (!options.length) continue;
-    const target = options[Math.floor(Math.random() * options.length)];
+    const target = pickFrom(options);
     c.signal = { target, side: Math.sign(target.y - lane.y), t: style.signal };
   }
 }

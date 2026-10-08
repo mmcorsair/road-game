@@ -21,47 +21,47 @@ function shake(duration, magnitude) {
 const fx = {
   crash(x, y, dir, color) {
     for (let i = 0; i < 18; i++) {           // sparks
-      addParticle({ kind: 'dot', x, y, vx: dir * rand(60, 280) + rand(-80, 80), vy: rand(-220, 220),
-                    life: rand(0.25, 0.55), size: rand(1.5, 3), color: '#ffd35a', drag: 3 });
+      addParticle({ kind: 'dot', x, y, vx: dir * fxRand(60, 280) + fxRand(-80, 80), vy: fxRand(-220, 220),
+                    life: fxRand(0.25, 0.55), size: fxRand(1.5, 3), color: '#ffd35a', drag: 3 });
     }
     for (let i = 0; i < 10; i++) {           // pieces of the car
-      addParticle({ kind: 'shard', x, y, vx: dir * rand(40, 200), vy: rand(-150, 150), life: rand(0.6, 1.1),
-                    size: rand(3, 6), color, drag: 4, spin: rand(-14, 14), rot: rand(0, 6) });
+      addParticle({ kind: 'shard', x, y, vx: dir * fxRand(40, 200), vy: fxRand(-150, 150), life: fxRand(0.6, 1.1),
+                    size: fxRand(3, 6), color, drag: 4, spin: fxRand(-14, 14), rot: fxRand(0, 6) });
     }
     for (let i = 0; i < 8; i++) {            // dust cloud
-      addParticle({ kind: 'smoke', x: x + rand(-8, 8), y: y + rand(-8, 8), vx: rand(-40, 40), vy: rand(-40, 40),
-                    life: rand(0.6, 1), size: rand(5, 10), grow: 20, color: '#cfcfcf', alpha: 0.5, drag: 2 });
+      addParticle({ kind: 'smoke', x: x + fxRand(-8, 8), y: y + fxRand(-8, 8), vx: fxRand(-40, 40), vy: fxRand(-40, 40),
+                    life: fxRand(0.6, 1), size: fxRand(5, 10), grow: 20, color: '#cfcfcf', alpha: 0.5, drag: 2 });
     }
     shake(0.4, 8);
   },
 
   confetti() {
     for (let i = 0; i < 80; i++) {
-      addParticle({ kind: 'shard', x: rand(0, W), y: rand(-30, FINISH_H), vx: rand(-50, 50), vy: rand(40, 160),
-                    life: rand(1.2, 2.2), size: rand(3, 6), color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
-                    gravity: 140, drag: 0.8, spin: rand(-10, 10), rot: rand(0, 6) });
+      addParticle({ kind: 'shard', x: fxRand(0, W), y: fxRand(-30, FINISH_H), vx: fxRand(-50, 50), vy: fxRand(40, 160),
+                    life: fxRand(1.2, 2.2), size: fxRand(3, 6), color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+                    gravity: 140, drag: 0.8, spin: fxRand(-10, 10), rot: fxRand(0, 6) });
     }
   },
 
   sparkle(x, y, color) {
     for (let i = 0; i < 14; i++) {
-      const a = (i / 14) * Math.PI * 2, speed = rand(80, 160);
+      const a = (i / 14) * Math.PI * 2, speed = fxRand(80, 160);
       addParticle({ kind: 'dot', x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
-                    life: rand(0.35, 0.6), size: rand(1.5, 3), color: i % 2 ? color : '#ffffff', drag: 4 });
+                    life: fxRand(0.35, 0.6), size: fxRand(1.5, 3), color: i % 2 ? color : '#ffffff', drag: 4 });
     }
   },
 
   shieldBreak(x, y) {
     for (let i = 0; i < 16; i++) {
-      const a = (i / 16) * Math.PI * 2, speed = rand(120, 220);
+      const a = (i / 16) * Math.PI * 2, speed = fxRand(120, 220);
       addParticle({ kind: 'shard', x: x + Math.cos(a) * 18, y: y + Math.sin(a) * 18,
-                    vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, life: rand(0.4, 0.7), size: rand(4, 7),
-                    color: '#8fd3ff', drag: 3, spin: rand(-12, 12), rot: a });
+                    vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, life: fxRand(0.4, 0.7), size: fxRand(4, 7),
+                    color: '#8fd3ff', drag: 3, spin: fxRand(-12, 12), rot: a });
     }
   },
 
   exhaust(x, y, dir) {
-    addParticle({ kind: 'smoke', x, y: y + rand(-2, 2), vx: -dir * rand(10, 30), vy: rand(-6, 6), life: 0.8,
+    addParticle({ kind: 'smoke', x, y: y + fxRand(-2, 2), vx: -dir * fxRand(10, 30), vy: fxRand(-6, 6), life: 0.8,
                   size: 2, grow: 6, color: '#d2d2d2', alpha: 0.16, drag: 1.5, under: true });
   },
 };
@@ -70,9 +70,9 @@ const fx = {
 function emitExhaust(dt) {
   for (const lane of lanes) {
     for (const c of lane.cars) {
-      c.puff = (c.puff ?? rand(0, 0.4)) - dt;
+      c.puff = (c.puff ?? fxRand(0, 0.4)) - dt;
       if (c.puff > 0) continue;
-      c.puff = rand(0.25, 0.5);
+      c.puff = fxRand(0.25, 0.5);
       const tailX = c.x - lane.dir * (c.w / 2 + 2);
       if (c.kind !== 'train' && c.v > 5 && tailX > 0 && tailX < W) fx.exhaust(tailX, vehicleY(c, lane) + c.h / 4, lane.dir);
     }
@@ -118,5 +118,5 @@ function drawParticles(under) {
 function shakeOffset() {
   if (shakeTime <= 0) return [0, 0];
   const m = shakeMag * (shakeTime / shakeDuration);
-  return [rand(-m, m), rand(-m, m)];
+  return [fxRand(-m, m), fxRand(-m, m)];
 }

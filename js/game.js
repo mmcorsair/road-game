@@ -1,5 +1,7 @@
 // ---------- Game flow ----------
-function newGame() {
+function newGame(newMode = 'normal') {
+  mode = newMode;
+  if (mode === 'daily') startDaily();
   level = 1;
   lives = START_LIVES;
   score = 0;
@@ -139,6 +141,7 @@ function update(dt) {
         state = 'levelup';
         stateTimer = LEVELUP_TIME;
         silenceSiren();
+        dailyLevelDone();
         fx.confetti();
         sfx.levelUp();
       } else {
@@ -167,6 +170,7 @@ function update(dt) {
           state = 'gameover';
           newHighScore = score > hiScore;
           saveHiScore();
+          if (mode === 'daily') finishDaily();
           updateHud();
           sfx.gameOver();
         }
@@ -190,7 +194,7 @@ function update(dt) {
 }
 
 function updateHud() {
-  document.getElementById('level').textContent = `Level ${level}`;
+  document.getElementById('level').textContent = `${mode === 'daily' ? '📅 ' : ''}Level ${level}`;
   document.getElementById('score').textContent = `Score ${score}`;
   document.getElementById('lives').textContent = '❤️'.repeat(Math.max(0, lives)) || '💀';
   document.getElementById('hiscore').textContent = `Hi ${Math.max(hiScore, score)}`;

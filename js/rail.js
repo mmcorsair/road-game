@@ -16,16 +16,15 @@ function makeRailLane(lane) {
 }
 
 function spawnTrain(lane) {
-  lane.dir = Math.random() < 0.5 ? -1 : 1;              // trains come from either side
-  const wagons = 3 + Math.floor(Math.random() * 4);
+  lane.dir = gameRandom() < 0.5 ? -1 : 1;              // trains come from either side
+  const wagons = 3 + Math.floor(gameRandom() * 4);
   const w = LOCO_LEN + wagons * (WAGON_LEN + COUPLING);
   const speed = rand(TRAIN_SPEED_MIN, TRAIN_SPEED_MAX) * (1 + 0.05 * (level - RAIL_LEVEL));
-  const pick = list => list[Math.floor(Math.random() * list.length)];
   const train = {
     kind: 'train', w, h: 34, speed, v: speed, braking: false, wagons,
     x: lane.dir > 0 ? -w / 2 : W + w / 2,
-    color: pick(LOCO_COLORS),
-    wagonColors: Array.from({ length: wagons }, () => pick(WAGON_COLORS)),
+    color: pickFrom(LOCO_COLORS),
+    wagonColors: Array.from({ length: wagons }, () => pickFrom(WAGON_COLORS)),
   };
   lane.cars.push(train);
   return train;

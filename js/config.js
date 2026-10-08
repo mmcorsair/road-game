@@ -32,4 +32,20 @@ const SLOW_TIME = 5, SLOW_FACTOR = 0.4;   // slow-traffic power-up: duration and
 const SHIELD_GRACE = 1.5;                 // seconds of safety after a shield breaks
 const CAR_COLORS =['#e74c3c', '#3498db', '#f1c40f', '#9b59b6', '#1abc9c', '#e67e22', '#ecf0f1', '#2ecc71'];
 
-const rand = (a, b) => a + Math.random() * (b - a);
+// Gameplay randomness goes through gameRandom()/pickupRandom(). The daily challenge swaps them for
+// generators seeded by the date (see daily.js); cosmetic effects use fxRand() so they never disturb them.
+let gameRandom = Math.random, pickupRandom = Math.random;
+const rand = (a, b) => a + gameRandom() * (b - a);
+const pickupRand = (a, b) => a + pickupRandom() * (b - a);
+const fxRand = (a, b) => a + Math.random() * (b - a);
+const pickFrom = (list, random = gameRandom) => list[Math.floor(random() * list.length)];
+
+// Fisher–Yates shuffle (unlike sort() with a random comparator, it's the same in every browser).
+function shuffled(list) {
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(gameRandom() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
