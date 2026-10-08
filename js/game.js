@@ -76,6 +76,7 @@ function update(dt) {
     popups = popups.filter(p => p.t > 0);
     goTimer = Math.max(0, goTimer - dt);
     if (banner && (banner.t -= dt) <= 0) banner = null;
+    updateTips(dt);
     updateEffects(dt);
     if (state !== 'hit') emitExhaust(dt);    // traffic is frozen during 'hit'
   }

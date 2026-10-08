@@ -69,6 +69,10 @@
     banner = null;
     particles = [];
     popups = [];
+    seenTips = new Set(Object.keys(TIPS));   // tips off unless a test turns them on
+    activeTip = null;
+    tipQueue = [];
+    tipSlow = 0;
     newGame();
     state = 'title';
   }
@@ -530,6 +534,72 @@
   });
 
   // ================================================================
+  describe('First-time tips', () => {
+    test('the move tip shows at the start and goes away once the player walks', () => {
+      seenTips = new Set();
+      newGame();
+      run(DT);
+      eq(activeTip && activeTip.id, 'move');
+      run(COUNTDOWN_STEP * 3);
+      eq(activeTip && activeTip.id, 'move', 'still there until the player moves');
+      hold('up');
+      run(1);
+      assert(!activeTip || activeTip.id !== 'move', 'dismissed after walking');
+    });
+
+    test('each tip shows only once, and is remembered', () => {
+      seenTips = new Set();
+      startPlaying(); quietRoad();
+      run(DT);                                   // move tip
+      activeTip = null;
+      pickups = [{ type: 'coin', x: 100, y: lanes[2].y, t: 5, age: 0 }];
+      run(DT);
+      eq(activeTip && activeTip.id, 'pickup');
+      activeTip = null;
+      pickups = [{ type: 'coin', x: 100, y: lanes[2].y, t: 5, age: 0 }];
+      run(DT);
+      eq(activeTip, null, 'not shown twice');
+      assert(JSON.parse(localStorage.getItem('roadCrossingTips')).includes('pickup'), 'saved');
+    });
+
+    test('a hazard tip goes first and briefly slows the game', () => {
+      seenTips = new Set(Object.keys(TIPS).filter(id => id !== 'clock' && id !== 'train'));
+      startPlaying({ lvl: RAIL_LEVEL });
+      timeLeft = TIME_LIMIT - 7;
+      run(DT);
+      eq(activeTip && activeTip.id, 'clock');
+      eq(tipTimeScale(0), 1, 'no slow motion for an ordinary tip');
+      const R = lanes.find(l => l.rail);
+      Object.assign(R.rail, { phase: 'warning', timer: 2 });
+      run(DT);
+      eq(activeTip.id, 'train', 'hazard tip took over');
+      eq(tipQueue[0].id, 'clock', 'ordinary tip waits');
+      eq(tipTimeScale(0.1), TIP_SLOWMO, 'slow motion');
+    });
+
+    test('replaying tips shows them again', () => {
+      seenTips = new Set(Object.keys(TIPS));
+      replayTips();
+      newGame();
+      run(DT);
+      eq(activeTip && activeTip.id, 'move');
+    });
+
+    test('tips never change the daily traffic', () => {
+      const traffic = () => {
+        startPlaying({ lvl: RAIL_LEVEL + 1, daily: true });
+        run(25, () => { onSidewalk(); if (state !== 'playing') state = 'playing'; });
+        return JSON.stringify(lanes.map(l => l.cars.map(c => [c.kind, Math.round(c.x * 10)])));
+      };
+      seenTips = new Set(Object.keys(TIPS));
+      const without = traffic();
+      seenTips = new Set();
+      const withTips = traffic();
+      eq(withTips, without);
+    });
+  });
+
+  // ================================================================
   describe('Drawing', () => {
     test('every screen draws without errors', () => {
       const screens = {
@@ -556,6 +626,10 @@
       banner = { text: 'Test banner', t: 1 };
       run(0.2);
       draw();
+      for (const id of Object.keys(TIPS)) {    // every tip card, with and without a target
+        activeTip = { id, t: 2, max: TIP_TIME, target: id === 'move' ? null : () => ({ x: 100, y: 120 }) };
+        draw();
+      }
     });
   });
 

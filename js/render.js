@@ -387,6 +387,7 @@ function draw() {
   }
   drawBanner();
   drawCountdown();
+  drawTip(now);
   updateShareButton();
   drawParticles(false);                      // sparks, debris, confetti on top of everything
 }
