@@ -22,7 +22,7 @@
   <span id="best">Best: 1</span>
 </div>
 <canvas id="game"></canvas>
-<div id="help">↑ / ↓ — move &nbsp;·&nbsp; Space — start &nbsp;·&nbsp; P — pause</div>
+<div id="help">↑ / ↓ — move &nbsp;·&nbsp; Space — start &nbsp;·&nbsp; P — pause &nbsp;·&nbsp; M — sound: <span id="sound">on</span></div>
 
 <script>
 // ---------- Layout & tuning ----------
@@ -55,6 +55,110 @@ function saveBest() {
   best = Math.max(best, level);
   try { localStorage.setItem('roadCrossingBest', best); } catch {}
 }
+
+// ---------- Sound (synthesized with Web Audio, no files needed) ----------
+const sound = {
+  ctx: null, master: null, noise: null,
+  muted: (() => { try { return localStorage.getItem('roadCrossingMuted') === '1'; } catch { return false; } })(),
+
+  // Browsers only allow audio to start after a user gesture, so this is called from input handlers.
+  init() {
+    if (this.ctx) {
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      return;
+    }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    this.ctx = new AC();
+    this.master = this.ctx.createGain();
+    this.master.gain.value = this.muted ? 0 : 0.5;
+    this.master.connect(this.ctx.destination);
+    // One second of white noise, reused for footsteps and crashes.
+    this.noise = this.ctx.createBuffer(1, this.ctx.sampleRate, this.ctx.sampleRate);
+    const data = this.noise.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  },
+
+  ready() { return this.ctx && !this.muted; },
+
+  toggleMute() {
+    this.muted = !this.muted;
+    if (this.master) this.master.gain.value = this.muted ? 0 : 0.5;
+    try { localStorage.setItem('roadCrossingMuted', this.muted ? '1' : '0'); } catch {}
+    updateHud();
+  },
+
+  output(node, pan) {
+    if (pan && this.ctx.createStereoPanner) {
+      const p = this.ctx.createStereoPanner();
+      p.pan.value = Math.max(-1, Math.min(1, pan));
+      node.connect(p);
+      p.connect(this.master);
+    } else {
+      node.connect(this.master);
+    }
+  },
+};
+
+function tone(freq, dur, { type = 'square', gain = 0.2, endFreq = freq, delay = 0, hold = 0, pan = 0 } = {}) {
+  if (!sound.ready()) return;
+  const ac = sound.ctx, t = ac.currentTime + delay;
+  const osc = ac.createOscillator(), g = ac.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t);
+  if (endFreq !== freq) osc.frequency.exponentialRampToValueAtTime(endFreq, t + dur);
+  g.gain.setValueAtTime(gain, t);
+  g.gain.setValueAtTime(gain, t + hold);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  osc.connect(g);
+  sound.output(g, pan);
+  osc.start(t);
+  osc.stop(t + dur + 0.02);
+}
+
+function noiseBurst(dur, { gain = 0.3, freq = 1000, endFreq = freq, delay = 0 } = {}) {
+  if (!sound.ready()) return;
+  const ac = sound.ctx, t = ac.currentTime + delay;
+  const src = ac.createBufferSource(), filter = ac.createBiquadFilter(), g = ac.createGain();
+  src.buffer = sound.noise;
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(freq, t);
+  if (endFreq !== freq) filter.frequency.exponentialRampToValueAtTime(endFreq, t + dur);
+  g.gain.setValueAtTime(gain, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  src.connect(filter);
+  filter.connect(g);
+  sound.output(g);
+  src.start(t, Math.random() * 0.4);
+  src.stop(t + dur + 0.02);
+}
+
+const sfx = {
+  step()  { noiseBurst(0.05, { gain: 0.12, freq: 900 }); },
+  start() {
+    tone(660, 0.12, { type: 'triangle', gain: 0.2 });
+    tone(990, 0.18, { type: 'triangle', gain: 0.2, delay: 0.1 });
+  },
+  honk(pan) {
+    tone(392, 0.4, { gain: 0.05, hold: 0.28, pan });
+    tone(494, 0.4, { gain: 0.05, hold: 0.28, pan });
+  },
+  warn() {
+    tone(880, 0.09, { type: 'sine', gain: 0.12 });
+    tone(880, 0.09, { type: 'sine', gain: 0.12, delay: 0.16 });
+  },
+  crash() {
+    tone(1300, 0.2, { type: 'sawtooth', gain: 0.05, endFreq: 800 });  // tyre screech
+    noiseBurst(0.7, { gain: 0.5, freq: 4000, endFreq: 150, delay: 0.08 });
+    tone(140, 0.45, { gain: 0.25, endFreq: 40, delay: 0.08 });       // thud
+  },
+  levelUp() {
+    [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.28, { type: 'triangle', gain: 0.22, delay: i * 0.11 }));
+  },
+  gameOver() {
+    [392, 330, 262, 196].forEach((f, i) => tone(f, 0.45, { type: 'triangle', gain: 0.22, delay: i * 0.22 }));
+  },
+};
 
 // ---------- Lanes & cars ----------
 function pickGap() {
@@ -104,7 +208,11 @@ function updateLane(lane, dt) {
   if (lane.reversible) {
     if (!lane.draining) {
       lane.switchTimer -= dt;
-      if (lane.switchTimer <= 0) { lane.draining = true; lane.drainTime = 0; }
+      if (lane.switchTimer <= 0) {
+        lane.draining = true;
+        lane.drainTime = 0;
+        if (state === 'playing') sfx.warn();
+      }
     } else {
       lane.drainTime += dt;
       if (!lane.cars.length && lane.drainTime >= MIN_WARNING) {
@@ -130,7 +238,21 @@ function updateLane(lane, dt) {
 
 // ---------- Player ----------
 function resetPlayer() {
-  player = { x: W / 2, y: H - START_H / 2, facing: -1, walk: 0 };
+  player = { x: W / 2, y: H - START_H / 2, facing: -1, walk: 0, lastStep: 0 };
+}
+
+// Cars honk once when they are about to run into the player.
+function honkAtPlayer() {
+  for (const lane of lanes) {
+    if (Math.abs(lane.y - player.y) > LANE_H / 2) continue;
+    for (const c of lane.cars) {
+      const gap = (player.x - c.x) * lane.dir - c.w / 2 - PLAYER_SIZE / 2;  // distance from bumper to player
+      if (!c.honked && gap > 0 && gap < 70) {
+        c.honked = true;
+        sfx.honk((c.x - W / 2) / (W / 2));
+      }
+    }
+  }
 }
 
 function hitsCar() {
@@ -153,6 +275,7 @@ function newGame() {
   resetPlayer();
   state = 'playing';
   updateHud();
+  sfx.start();
 }
 
 function update(dt) {
@@ -168,18 +291,23 @@ function update(dt) {
         player.y = Math.min(H - START_H / 2, Math.max(FINISH_H / 2, player.y + dy * PLAYER_SPEED * dt));
         player.facing = dy;
         player.walk += dt * 12;
+        const step = Math.floor(player.walk / Math.PI);   // one footstep per half walk cycle
+        if (step !== player.lastStep) { player.lastStep = step; sfx.step(); }
       }
       lanes.forEach(l => updateLane(l, dt));
+      honkAtPlayer();
 
       if (hitsCar()) {
         lives--;
         updateHud();
         state = 'hit';
         stateTimer = 1.2;
+        sfx.crash();
       } else if (player.y + PLAYER_SIZE / 2 < FINISH_H) {
         state = 'levelup';
         stateTimer = 1.5;
         saveBest();
+        sfx.levelUp();
       }
       break;
     }
@@ -188,7 +316,7 @@ function update(dt) {
       stateTimer -= dt;
       if (stateTimer <= 0) {
         if (lives > 0) { resetPlayer(); state = 'playing'; }
-        else { state = 'gameover'; saveBest(); updateHud(); }
+        else { state = 'gameover'; saveBest(); updateHud(); sfx.gameOver(); }
       }
       break;
 
@@ -211,6 +339,7 @@ function updateHud() {
   document.getElementById('level').textContent = `Level ${level}`;
   document.getElementById('lives').textContent = '❤️'.repeat(Math.max(0, lives)) || '💀';
   document.getElementById('best').textContent = `Best: ${best}`;
+  document.getElementById('sound').textContent = sound.muted ? 'off' : 'on';
 }
 
 // ---------- Drawing ----------
@@ -394,7 +523,9 @@ function setKey(e, down) {
 }
 
 addEventListener('keydown', e => {
+  sound.init();
   if (setKey(e, true) || e.key === ' ') e.preventDefault();
+  if (e.key === 'm' || e.key === 'M') sound.toggleMute();
   if ((e.key === ' ' || e.key === 'Enter') && (state === 'title' || state === 'gameover')) newGame();
   if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
     if (state === 'playing') state = 'paused';
@@ -409,6 +540,7 @@ addEventListener('blur', () => {
 
 // Touch / mouse: hold above the man to walk up, below him to walk down.
 canvas.addEventListener('pointerdown', e => {
+  sound.init();
   if (state === 'title' || state === 'gameover') { newGame(); return; }
   if (state === 'paused') { state = 'playing'; return; }
   const rect = canvas.getBoundingClientRect();
