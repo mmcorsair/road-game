@@ -96,6 +96,7 @@ function drawReversibleLanes(now) {
 }
 
 function drawCar(c, y, dir, now) {
+  if (c.kind === 'train') { drawTrain(c, y, dir); return; }
   const { w, h } = c;
   ctx.save();
   ctx.translate(c.x, y);
@@ -323,6 +324,7 @@ function overlay(title, ...lines) {
 
 function nextLevelHint() {
   if (level + 1 === BIKE_LEVEL) return 'Next: watch out for fast motorbikes!';
+  if (level + 1 === RAIL_LEVEL) return 'Next: a railway crossing — mind the lights!';
   if (level + 1 === EMERGENCY_LEVEL) return 'Next: listen for sirens — emergency vehicles!';
   return 'Faster traffic, more reversing lanes…';
 }
@@ -335,6 +337,7 @@ function draw() {
   ctx.save();
   ctx.translate(sx, sy);
   drawScene();
+  drawRailTracks(now);
   drawReversibleLanes(now);
   drawParticles(true);                       // exhaust, beneath the vehicles
   drawEmergencyGlow(now);

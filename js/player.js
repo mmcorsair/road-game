@@ -12,7 +12,7 @@ function honkAtPlayer() {
     if (Math.abs(lane.y - player.y) > LANE_H / 2) continue;
     for (const c of lane.cars) {
       const gap = (player.x - c.x) * lane.dir - c.w / 2 - PLAYER_SIZE / 2;  // distance from bumper to player
-      if (!c.honked && c.kind !== 'emergency' && gap > 0 && gap < 70) {
+      if (!c.honked && c.kind !== 'emergency' && c.kind !== 'train' && gap > 0 && gap < 70) {
         c.honked = true;
         sfx.honk((c.x - W / 2) / (W / 2));
       }

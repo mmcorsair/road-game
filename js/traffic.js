@@ -43,12 +43,15 @@ function buildLanes() {
       : MEDIAN_Y + MEDIAN_H + (i - LANES_PER_SIDE) * LANE_H + LANE_H / 2;
     // Right-hand traffic seen from above: upper half drives left, lower half drives right.
     lanes.push({ y, dir: top ? -1 : 1, speed: rand(70, 150) * speedMul, cars: [], nextGap: pickGap(),
-                 reversible: false, switchTimer: 0, draining: false, drainTime: 0, emergency: null });
+                 reversible: false, switchTimer: 0, draining: false, drainTime: 0, emergency: null, rail: null });
   }
   // A few random lanes periodically reverse direction; more of them on higher levels.
+  // Railway lanes (from RAIL_LEVEL) are picked first, so a lane is never both.
   const reversibleCount = Math.min(1 + Math.floor((level - 1) / 2), 4);
+  const railCount = railLaneCount();
   const shuffled = [...lanes].sort(() => Math.random() - 0.5);
-  for (const lane of shuffled.slice(0, reversibleCount)) {
+  shuffled.slice(0, railCount).forEach(makeRailLane);
+  for (const lane of shuffled.slice(railCount, railCount + reversibleCount)) {
     lane.reversible = true;
     lane.switchTimer = rand(REVERSE_MIN, REVERSE_MAX);
   }
@@ -79,6 +82,7 @@ function moveVehicles(lane, dt) {
 
 function updateLane(lane, dt) {
   moveVehicles(lane, dt);
+  if (lane.rail) { updateRail(lane, dt); return; }
 
   // Reversible lanes: stop letting cars in, wait until the lane is empty, then flip direction.
   if (lane.reversible) {
@@ -124,7 +128,7 @@ function updateLane(lane, dt) {
 
 function dispatchEmergency() {
   emergencyTimer = rand(EMERGENCY_MIN, EMERGENCY_MAX);
-  const candidates = lanes.filter(l => !l.reversible && !l.emergency);
+  const candidates = lanes.filter(l => !l.reversible && !l.emergency && !l.rail);
   if (!candidates.length) return;
   const lane = candidates[Math.floor(Math.random() * candidates.length)];
   lane.emergency = { t: EMERGENCY_WARN };

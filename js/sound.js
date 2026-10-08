@@ -109,6 +109,31 @@ const sfx = {
     noiseBurst(0.25, { gain: 0.3, freq: 6000, endFreq: 800 });
     tone(700, 0.3, { type: 'triangle', gain: 0.2, endFreq: 200 });
   },
+  bell() {                              // level-crossing bell
+    tone(1750, 0.3, { type: 'sine', gain: 0.07 });
+    tone(2630, 0.2, { type: 'sine', gain: 0.03 });
+  },
+  trainHorn(pan) {                      // three-note air horn chord
+    for (const f of [277, 349, 415]) tone(f, 1.1, { type: 'sawtooth', gain: 0.035, hold: 0.85, pan });
+  },
+  rumble(dur) {                         // low rumble while a train passes
+    if (!sound.ready()) return;
+    const ac = sound.ctx, t = ac.currentTime;
+    const src = ac.createBufferSource(), filter = ac.createBiquadFilter(), g = ac.createGain();
+    src.buffer = sound.noise;
+    src.loop = true;
+    filter.type = 'lowpass';
+    filter.frequency.value = 180;
+    g.gain.setValueAtTime(0.001, t);
+    g.gain.exponentialRampToValueAtTime(0.5, t + 0.3);
+    g.gain.setValueAtTime(0.5, t + Math.max(0.3, dur - 0.5));
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur + 0.3);
+    src.connect(filter);
+    filter.connect(g);
+    sound.output(g);
+    src.start(t);
+    src.stop(t + dur + 0.35);
+  },
   count() { tone(660, 0.12, { type: 'triangle', gain: 0.18 }); },
   point() { tone(1200, 0.07, { type: 'sine', gain: 0.1 }); },
   tick()  { tone(1600, 0.04, { gain: 0.06 }); },
