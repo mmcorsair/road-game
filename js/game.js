@@ -35,7 +35,7 @@ function loseLife(reason) {
   // Cancel any announced emergency vehicle, since traffic freezes and the siren would be out of sync.
   silenceSiren();
   for (const l of lanes) l.emergency = null;
-  if (reason === 'car') sfx.crash(); else sfx.timeUp();
+  if (reason === 'car') { sfx.crash(); vibrate(250); } else { sfx.timeUp(); vibrate(120); }
 }
 
 function update(dt) {
@@ -130,4 +130,5 @@ function updateHud() {
   document.getElementById('lives').textContent = '❤️'.repeat(Math.max(0, lives)) || '💀';
   document.getElementById('hiscore').textContent = `Hi ${Math.max(hiScore, score)}`;
   document.getElementById('sound').textContent = sound.muted ? 'off' : 'on';
+  document.getElementById('muteBtn').textContent = sound.muted ? '🔇' : '🔊';
 }

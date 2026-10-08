@@ -2,7 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1d2330">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Road Crossing">
 <title>Road Crossing</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -13,8 +18,29 @@
   <span id="lives"></span>
   <span id="hiscore">Hi 0</span>
 </div>
-<canvas id="game"></canvas>
-<div id="help">Arrows / WASD — move &nbsp;·&nbsp; Space — start &nbsp;·&nbsp; P — pause &nbsp;·&nbsp; M — sound: <span id="sound">on</span></div>
+<div id="stage">
+  <canvas id="game"></canvas>
+  <!-- On-screen controls, shown on touch devices. &#xFE0E; keeps the arrows from turning into emoji. -->
+  <div id="controls">
+    <div class="pad" id="pad-left">
+      <button class="btn" data-dir="left" tabindex="-1" aria-label="Left">&#x25C0;&#xFE0E;</button>
+      <button class="btn" data-dir="right" tabindex="-1" aria-label="Right">&#x25B6;&#xFE0E;</button>
+    </div>
+    <div class="pad" id="pad-center">
+      <button class="btn small" id="pauseBtn" tabindex="-1" aria-label="Pause">&#x23F8;&#xFE0E;</button>
+      <button class="btn small" id="muteBtn" tabindex="-1" aria-label="Sound on/off">🔊</button>
+      <button class="btn small" id="fullscreenBtn" tabindex="-1" aria-label="Fullscreen" hidden>&#x26F6;</button>
+    </div>
+    <div class="pad" id="pad-right">
+      <button class="btn" data-dir="up" tabindex="-1" aria-label="Up">&#x25B2;&#xFE0E;</button>
+      <button class="btn" data-dir="down" tabindex="-1" aria-label="Down">&#x25BC;&#xFE0E;</button>
+    </div>
+  </div>
+</div>
+<div id="help">
+  <span class="kb-help">Arrows / WASD — move &nbsp;·&nbsp; Space — start &nbsp;·&nbsp; P — pause &nbsp;·&nbsp; M — sound: <span id="sound">on</span></span>
+  <span class="touch-help">Tap to start &nbsp;·&nbsp; hold the arrows or drag on the road to move</span>
+</div>
 
 <script src="js/config.js"></script>
 <script src="js/state.js"></script>
