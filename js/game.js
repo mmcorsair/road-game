@@ -7,6 +7,8 @@ function newGame() {
   levelProgress = 0;
   popups = [];
   particles = [];
+  banner = null;
+  skinsUnlockedThisGame = [];
   buildLanes();
   resetPickups();
   startAttempt();
@@ -35,7 +37,9 @@ function addPopup(text, x, y) {
 }
 
 function addScore(points, x, y) {
+  const oldScore = score;
   score += points;
+  checkSkinUnlocks(oldScore);
   addPopup(`+${points}`, x, y);
   updateHud();
 }
@@ -69,6 +73,7 @@ function update(dt) {
     for (const p of popups) { p.t -= dt; p.y -= 30 * dt; }
     popups = popups.filter(p => p.t > 0);
     goTimer = Math.max(0, goTimer - dt);
+    if (banner && (banner.t -= dt) <= 0) banner = null;
     updateEffects(dt);
     if (state !== 'hit') emitExhaust(dt);    // traffic is frozen during 'hit'
   }

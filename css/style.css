@@ -37,7 +37,7 @@ body.touch .touch-help { display: inline; }
 body.touch #controls { display: contents; }   /* its pads become cells of the #stage grid */
 .pad { display: flex; gap: 12px; align-items: center; justify-content: center; }
 #pad-left { grid-area: left; }
-#pad-center { grid-area: center; flex-direction: column; gap: 8px; }
+#pad-center { grid-area: center; display: grid; grid-template-columns: repeat(2, auto); gap: 8px; }
 #pad-right { grid-area: right; flex-direction: column; }
 .btn { width: 64px; height: 64px; border: none; border-radius: 16px; padding: 0;
        background: rgba(255, 255, 255, .12); color: #fff; font-size: 26px;
@@ -51,6 +51,25 @@ body.touch #controls { display: contents; }   /* its pads become cells of the #s
   body.touch #hud { width: min(100vw - 24px, 480px); }   /* the road is narrow here; give the HUD room */
   body.touch #stage { grid-template-areas: "left canvas right" "center canvas right";
                       grid-template-columns: auto var(--w) auto; width: auto; column-gap: 24px; }
-  body.touch #pad-center { flex-direction: row; }
+  body.touch #pad-center { grid-template-columns: repeat(4, auto); }
   body.touch #help { display: none; }
 }
+
+/* ---------- Skin picker ---------- */
+.link { background: none; border: none; color: inherit; font: inherit; padding: 0; cursor: pointer;
+        text-decoration: underline dotted; }
+#skins { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+         background: rgba(0, 0, 0, .6); padding: 16px; }
+#skins[hidden] { display: none; }               /* `display: flex` above would otherwise override [hidden] */
+.skins-box { background: #262d3d; border-radius: 14px; padding: 16px; width: min(420px, 100%);
+             max-height: 100%; overflow-y: auto; box-shadow: 0 10px 40px rgba(0, 0, 0, .6); box-sizing: border-box; }
+.skins-head { display: flex; justify-content: space-between; align-items: center; font-size: 18px; margin-bottom: 12px; }
+.skins-head .link { text-decoration: none; font-size: 20px; }
+#skinGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.skin-card { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px;
+             background: rgba(255, 255, 255, .06); color: #eee; border: 2px solid transparent; border-radius: 10px;
+             font: 13px system-ui, sans-serif; cursor: pointer; }
+.skin-card canvas { width: 64px; height: 64px; }
+.skin-card.selected { border-color: #f1c40f; background: rgba(241, 196, 15, .12); }
+.skin-card.locked { cursor: default; color: #8a93a6; }
+.skins-note { margin: 12px 0 0; font-size: 12px; opacity: .6; text-align: center; }

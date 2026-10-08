@@ -208,18 +208,7 @@ function drawPlayer() {
   ctx.translate(player.x, player.y - hop);
   ctx.rotate(player.shownAngle + (crashed ? player.spin : 0)); // sprite is drawn facing up
 
-  const swing = Math.sin(player.walk) * 5;
-  const ellipse = (x, y, rx, ry, color) => {
-    ctx.fillStyle = color;
-    ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
-  };
-  ellipse(-5, swing, 3.5, 6, '#2c3e50');       // feet
-  ellipse(5, -swing, 3.5, 6, '#2c3e50');
-  ellipse(-11, -swing * 0.8, 3, 3, '#f0c08a'); // hands
-  ellipse(11, swing * 0.8, 3, 3, '#f0c08a');
-  ellipse(0, 0, 11, 7, '#e67e22');             // shoulders / shirt
-  ellipse(0, -1, 5.5, 5.5, '#f0c08a');         // head (face toward the front)
-  ellipse(0, 0.5, 5.5, 4.5, '#6b4226');        // hair
+  currentSkin().draw(ctx, Math.sin(player.walk) * 5, now);
   ctx.restore();
   if (player.shield) drawShield(player.x, player.y - hop, now);
 
@@ -361,18 +350,22 @@ function draw() {
   ctx.restore();
 
   if (state === 'title') {
-    overlay('Road Crossing', 'Cross before the clock runs out', 'Grab bonuses: coins ⏱ 🛡 🐢 ❤️', 'Press Space (or tap) to start');
+    overlay('Road Crossing', 'Cross before the clock runs out', 'Grab bonuses: coins ⏱ 🛡 🐢 ❤️',
+      `Skin: ${currentSkin().name}  ·  👕 to change`, 'Press Space (or tap) to start');
   } else if (state === 'paused') {
     overlay('Paused', 'Press P to continue');
   } else if (state === 'levelup') {
     overlay(`Level ${level} complete!`,
       `+${levelBonus.levelPoints} level  ·  +${levelBonus.timePoints} time bonus`, nextLevelHint());
   } else if (state === 'gameover') {
+    const unlockedLine = skinsUnlockedThisGame.length
+      ? [`👕 Unlocked: ${skinsUnlockedThisGame.join(', ')} — try it on!`] : [];
     overlay('Game Over', `Score ${score}  ·  level ${level}`,
-      newHighScore ? '🏆 New high score!' : `High score ${hiScore}`, 'Space to play again');
+      newHighScore ? '🏆 New high score!' : `High score ${hiScore}`, ...unlockedLine, 'Space to play again');
   } else if (state === 'hit' && lives > 0) {
     overlay(hitReason === 'time' ? "Time's up!" : 'Ouch!', `${lives} ${lives === 1 ? 'life' : 'lives'} left`);
   }
+  drawBanner();
   drawCountdown();
   drawParticles(false);                      // sparks, debris, confetti on top of everything
 }

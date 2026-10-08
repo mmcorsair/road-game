@@ -30,6 +30,7 @@
       <button class="btn small" id="pauseBtn" tabindex="-1" aria-label="Pause">&#x23F8;&#xFE0E;</button>
       <button class="btn small" id="muteBtn" tabindex="-1" aria-label="Sound on/off">🔊</button>
       <button class="btn small" id="fullscreenBtn" tabindex="-1" aria-label="Fullscreen" hidden>&#x26F6;</button>
+      <button class="btn small" id="skinsBtn" tabindex="-1" aria-label="Skins">👕</button>
     </div>
     <div class="pad" id="pad-right">
       <button class="btn" data-dir="up" tabindex="-1" aria-label="Up">&#x25B2;&#xFE0E;</button>
@@ -38,8 +39,16 @@
   </div>
 </div>
 <div id="help">
-  <span class="kb-help">Arrows / WASD — move &nbsp;·&nbsp; Space — start &nbsp;·&nbsp; P — pause &nbsp;·&nbsp; M — sound: <span id="sound">on</span></span>
+  <span class="kb-help">Arrows / WASD — move &nbsp;·&nbsp; Space — start &nbsp;·&nbsp; P — pause &nbsp;·&nbsp; M — sound: <span id="sound">on</span> &nbsp;·&nbsp; <button id="skinsLink" class="link" tabindex="-1">👕 K — skins</button></span>
   <span class="touch-help">Tap to start &nbsp;·&nbsp; hold the arrows or drag on the road to move</span>
+</div>
+
+<div id="skins" hidden>
+  <div class="skins-box" role="dialog" aria-label="Choose a skin">
+    <div class="skins-head"><strong>Skins</strong><button id="skinsClose" class="link" tabindex="-1" aria-label="Close">✕</button></div>
+    <div id="skinGrid"></div>
+    <p class="skins-note">Unlock more by reaching higher scores.</p>
+  </div>
 </div>
 
 <script src="js/config.js"></script>
@@ -49,6 +58,7 @@
 <script src="js/traffic.js"></script>
 <script src="js/player.js"></script>
 <script src="js/pickups.js"></script>
+<script src="js/skins.js"></script>
 <script src="js/game.js"></script>
 <script src="js/render.js"></script>
 <script src="js/input.js"></script>

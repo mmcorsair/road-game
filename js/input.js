@@ -56,6 +56,12 @@ function setKey(e, down) {
 
 addEventListener('keydown', e => {
   sound.init();
+  if (skinPickerOpen()) {                       // the skin panel takes over the keyboard while open
+    if (e.key === 'Escape' || e.key === 'k' || e.key === 'K') closeSkinPicker();
+    if (e.key === ' ') e.preventDefault();
+    return;
+  }
+  if (e.key === 'k' || e.key === 'K') { openSkinPicker(); return; }
   if (setKey(e, true) || e.key === ' ') e.preventDefault();
   if (e.key === 'm' || e.key === 'M') sound.toggleMute();
   if ((e.key === ' ' || e.key === 'Enter') && (state === 'title' || state === 'gameover')) newGame();

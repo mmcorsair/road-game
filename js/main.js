@@ -9,6 +9,7 @@ function frame(now) {
   lastTime = now;
   update(dt);
   draw();
+  drawSkinPreviews(now);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
