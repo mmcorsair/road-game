@@ -1,10 +1,12 @@
 #!/bin/sh
 # Runs tests.html in headless Chrome and prints the results. Exits non-zero if any test fails.
 # Usage: tests/run.sh        (or just open tests.html in a browser)
+# Env: CHROME — path to Chrome (default: the macOS app); CHROME_FLAGS — extra flags, e.g. --no-sandbox on CI.
 set -e
 cd "$(dirname "$0")/.."
 CHROME="${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
-"$CHROME" --headless=new --disable-gpu --allow-file-access-from-files --virtual-time-budget=120000 \
+# shellcheck disable=SC2086  # CHROME_FLAGS is intentionally split into separate flags
+"$CHROME" --headless=new --disable-gpu --allow-file-access-from-files --virtual-time-budget=120000 $CHROME_FLAGS \
   --dump-dom "file://$PWD/tests.html" 2>/dev/null | python3 -c '
 import sys, re, html
 dom = sys.stdin.read()
