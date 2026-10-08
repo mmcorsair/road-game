@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Road Crossing</title>
+<style>
+  :root { --w: min(480px, 95vw, calc((100vh - 110px) * 0.75)); }
+  html, body { margin: 0; height: 100%; background: #1d2330; color: #eee;
+               font-family: system-ui, -apple-system, sans-serif; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+  #hud { display: flex; justify-content: space-between; width: var(--w); font-size: 18px; }
+  canvas { width: var(--w); aspect-ratio: 3 / 4; border-radius: 8px;
+           box-shadow: 0 8px 30px rgba(0, 0, 0, .5); touch-action: none; }
+  #help { font-size: 13px; opacity: .7; text-align: center; }
+</style>
+</head>
+<body>
+<div id="hud">
+  <span id="level">Level 1</span>
+  <span id="lives"></span>
+  <span id="best">Best: 1</span>
+</div>
+<canvas id="game"></canvas>
+<div id="help">↑ / ↓ — move &nbsp;·&nbsp; Space — start &nbsp;·&nbsp; P — pause</div>
+
+<script>
+// ---------- Layout & tuning ----------
+const W = 480, H = 640;
+const FINISH_H = 64, START_H = 64, LANE_H = 48, MEDIAN_H = 32, LANES_PER_SIDE = 5;
+const MEDIAN_Y = FINISH_H + LANES_PER_SIDE * LANE_H;          // top of the median strip
+const PLAYER_SPEED = 150, PLAYER_SIZE = 22, START_LIVES = 3;
+const CAR_COLORS = ['#e74c3c', '#3498db', '#f1c40f', '#9b59b6', '#1abc9c', '#e67e22', '#ecf0f1', '#2ecc71'];
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+canvas.width = W * dpr;
+canvas.height = H * dpr;
+ctx.scale(dpr, dpr);
+
+const rand = (a, b) => a + Math.random() * (b - a);
+
+// ---------- Game state ----------
+let level = 1, lives = START_LIVES, best = loadBest();
+let lanes = [], player, state = 'title', stateTimer = 0;
+const keys = { up: false, down: false };
+
+function loadBest() {
+  try { return Number(localStorage.getItem('roadCrossingBest')) || 1; } catch { return 1; }
+}
+function saveBest() {
+  best = Math.max(best, level);
+  try { localStorage.setItem('roadCrossingBest', best); } catch {}
+}
+
+// ---------- Lanes & cars ----------
+function pickGap() {
+  const base = Math.max(120, 250 - level * 15);
+  return rand(base, base * 2.2);
+}
+
+function makeCar() {
+  const truck = Math.random() < 0.2;
+  return {
+    x: 0,
+    w: truck ? rand(95, 125) : rand(54, 70),
+    h: truck ? 34 : 28,
+    truck,
+    color: CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)],
+  };
+}
+
+function buildLanes() {
+  lanes = [];
+  const speedMul = 1 + 0.18 * (level - 1);
+  for (let i = 0; i < LANES_PER_SIDE * 2; i++) {
+    const top = i < LANES_PER_SIDE;
+    const y = top
+      ? FINISH_H + i * LANE_H + LANE_H / 2
+      : MEDIAN_Y + MEDIAN_H + (i - LANES_PER_SIDE) * LANE_H + LANE_H / 2;
+    // Right-hand traffic seen from above: upper half drives left, lower half drives right.
+    lanes.push({ y, dir: top ? -1 : 1, speed: rand(70, 150) * speedMul, cars: [], nextGap: pickGap() });
+  }
+  // Pre-simulate so the road is already full of traffic.
+  for (const lane of lanes) for (let t = 0; t < 30; t += 0.05) updateLane(lane, 0.05);
+}
+
+function updateLane(lane, dt) {
+  for (const c of lane.cars) c.x += lane.dir * lane.speed * dt;
+  lane.cars = lane.cars.filter(c => c.x + c.w / 2 > -150 && c.x - c.w / 2 < W + 150);
+
+  // Distance from the entry edge of the screen to the rear of the most recently spawned car.
+  const last = lane.cars[lane.cars.length - 1];
+  const room = !last ? Infinity
+    : lane.dir > 0 ? last.x - last.w / 2 : W - (last.x + last.w / 2);
+  if (room >= lane.nextGap) {
+    const c = makeCar();
+    c.x = lane.dir > 0 ? -c.w / 2 : W + c.w / 2;
+    lane.cars.push(c);
+    lane.nextGap = pickGap();
+  }
+}
+
+// ---------- Player ----------
+function resetPlayer() {
+  player = { x: W / 2, y: H - START_H / 2, facing: -1, walk: 0 };
+}
+
+function hitsCar() {
+  const s = PLAYER_SIZE / 2 - 3;
+  for (const lane of lanes) {
+    if (Math.abs(lane.y - player.y) > LANE_H) continue;
+    for (const c of lane.cars) {
+      if (Math.abs(c.x - player.x) < c.w / 2 - 2 + s &&
+          Math.abs(lane.y - player.y) < c.h / 2 - 2 + s) return true;
+    }
+  }
+  return false;
+}
+
+// ---------- Game flow ----------
+function newGame() {
+  level = 1;
+  lives = START_LIVES;
+  buildLanes();
+  resetPlayer();
+  state = 'playing';
+  updateHud();
+}
+
+function update(dt) {
+  switch (state) {
+    case 'title':
+    case 'gameover':
+      lanes.forEach(l => updateLane(l, dt));
+      break;
+
+    case 'playing': {
+      const dy = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
+      if (dy) {
+        player.y = Math.min(H - START_H / 2, Math.max(FINISH_H / 2, player.y + dy * PLAYER_SPEED * dt));
+        player.facing = dy;
+        player.walk += dt * 12;
+      }
+      lanes.forEach(l => updateLane(l, dt));
+
+      if (hitsCar()) {
+        lives--;
+        updateHud();
+        state = 'hit';
+        stateTimer = 1.2;
+      } else if (player.y + PLAYER_SIZE / 2 < FINISH_H) {
+        state = 'levelup';
+        stateTimer = 1.5;
+        saveBest();
+      }
+      break;
+    }
+
+    case 'hit':                       // traffic freezes briefly after an accident
+      stateTimer -= dt;
+      if (stateTimer <= 0) {
+        if (lives > 0) { resetPlayer(); state = 'playing'; }
+        else { state = 'gameover'; saveBest(); updateHud(); }
+      }
+      break;
+
+    case 'levelup':
+      lanes.forEach(l => updateLane(l, dt));
+      stateTimer -= dt;
+      if (stateTimer <= 0) {
+        level++;
+        saveBest();
+        buildLanes();
+        resetPlayer();
+        state = 'playing';
+        updateHud();
+      }
+      break;
+  }
+}
+
+function updateHud() {
+  document.getElementById('level').textContent = `Level ${level}`;
+  document.getElementById('lives').textContent = '❤️'.repeat(Math.max(0, lives)) || '💀';
+  document.getElementById('best').textContent = `Best: ${best}`;
+}
+
+// ---------- Drawing ----------
+function drawScene() {
+  // Finish zone (grass + checkered line)
+  ctx.fillStyle = '#3c8d40';
+  ctx.fillRect(0, 0, W, FINISH_H);
+  ctx.fillStyle = 'rgba(255,255,255,.25)';
+  ctx.font = 'bold 22px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('FINISH', W / 2, FINISH_H / 2 - 6);
+  for (let x = 0; x < W; x += 12) {
+    for (let r = 0; r < 2; r++) {
+      ctx.fillStyle = ((x / 12 + r) % 2) ? '#111' : '#fff';
+      ctx.fillRect(x, FINISH_H - 12 + r * 6, 12, 6);
+    }
+  }
+
+  // Road surface
+  ctx.fillStyle = '#3a3d44';
+  ctx.fillRect(0, FINISH_H, W, H - FINISH_H - START_H);
+
+  // Dashed lane separators
+  ctx.strokeStyle = 'rgba(255,255,255,.6)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([24, 18]);
+  for (let k = 1; k < LANES_PER_SIDE; k++) {
+    for (const y of [FINISH_H + k * LANE_H, MEDIAN_Y + MEDIAN_H + k * LANE_H]) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+  }
+  ctx.setLineDash([]);
+
+  // Median strip with yellow edge lines
+  ctx.fillStyle = '#4a7d3a';
+  ctx.fillRect(0, MEDIAN_Y, W, MEDIAN_H);
+  ctx.fillStyle = '#f4d03f';
+  ctx.fillRect(0, MEDIAN_Y, W, 3);
+  ctx.fillRect(0, MEDIAN_Y + MEDIAN_H - 3, W, 3);
+
+  // Start sidewalk with tiles
+  ctx.fillStyle = '#9aa0a6';
+  ctx.fillRect(0, H - START_H, W, START_H);
+  ctx.strokeStyle = 'rgba(0,0,0,.15)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= W; x += 32) {
+    ctx.beginPath(); ctx.moveTo(x, H - START_H); ctx.lineTo(x, H); ctx.stroke();
+  }
+  ctx.beginPath(); ctx.moveTo(0, H - START_H / 2); ctx.lineTo(W, H - START_H / 2); ctx.stroke();
+  ctx.fillStyle = '#ddd';
+  ctx.fillRect(0, H - START_H, W, 4);   // curb
+}
+
+function drawCar(c, y, dir) {
+  const { w, h } = c;
+  ctx.save();
+  ctx.translate(c.x, y);
+  if (dir < 0) ctx.scale(-1, 1);       // after this, the car's front always points to +x
+
+  ctx.fillStyle = 'rgba(0,0,0,.3)';
+  ctx.beginPath(); ctx.roundRect(-w / 2 + 3, -h / 2 + 3, w, h, 6); ctx.fill();
+
+  if (c.truck) {
+    ctx.fillStyle = '#d0d4d9';          // cargo box
+    ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w - 30, h, 3); ctx.fill();
+    ctx.fillStyle = c.color;            // cab
+    ctx.beginPath(); ctx.roundRect(w / 2 - 28, -h / 2 + 2, 28, h - 4, 6); ctx.fill();
+    ctx.fillStyle = '#1b2733';
+    ctx.beginPath(); ctx.roundRect(w / 2 - 12, -h / 2 + 5, 7, h - 10, 2); ctx.fill();
+  } else {
+    ctx.fillStyle = c.color;
+    ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w, h, 7); ctx.fill();
+    ctx.fillStyle = '#1b2733';          // windshield & rear window
+    ctx.beginPath(); ctx.roundRect(w / 2 - 24, -h / 2 + 4, 9, h - 8, 3); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(-w / 2 + 7, -h / 2 + 5, 7, h - 10, 3); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.15)'; // roof highlight
+    ctx.beginPath(); ctx.roundRect(-w / 2 + 16, -h / 2 + 5, w - 42, h - 10, 4); ctx.fill();
+  }
+
+  ctx.fillStyle = '#fff6a8';            // headlights
+  ctx.fillRect(w / 2 - 3, -h / 2 + 3, 3, 6);
+  ctx.fillRect(w / 2 - 3, h / 2 - 9, 3, 6);
+  ctx.fillStyle = '#ff3b3b';            // tail lights
+  ctx.fillRect(-w / 2, -h / 2 + 3, 2, 6);
+  ctx.fillRect(-w / 2, h / 2 - 9, 2, 6);
+  ctx.restore();
+}
+
+function drawPlayer() {
+  ctx.save();
+  ctx.translate(player.x, player.y);
+  if (state === 'hit') ctx.rotate((1.2 - stateTimer) * 10);   // spin after being bumped
+  else if (player.facing > 0) ctx.rotate(Math.PI);           // sprite is drawn facing up
+
+  const swing = Math.sin(player.walk) * 5;
+  const ellipse = (x, y, rx, ry, color) => {
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+  };
+  ellipse(-5, swing, 3.5, 6, '#2c3e50');       // feet
+  ellipse(5, -swing, 3.5, 6, '#2c3e50');
+  ellipse(-11, -swing * 0.8, 3, 3, '#f0c08a'); // hands
+  ellipse(11, swing * 0.8, 3, 3, '#f0c08a');
+  ellipse(0, 0, 11, 7, '#e67e22');             // shoulders / shirt
+  ellipse(0, -1, 5.5, 5.5, '#f0c08a');         // head (face toward the front)
+  ellipse(0, 0.5, 5.5, 4.5, '#6b4226');        // hair
+  ctx.restore();
+
+  if (state === 'hit') {
+    ctx.fillStyle = `rgba(255,60,60,${stateTimer / 2})`;
+    ctx.beginPath(); ctx.arc(player.x, player.y, 30, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+function overlay(title, sub) {
+  ctx.fillStyle = 'rgba(0,0,0,.6)';
+  ctx.fillRect(0, H / 2 - 70, W, 140);
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold 34px system-ui, sans-serif';
+  ctx.fillText(title, W / 2, H / 2 - 18);
+  ctx.font = '16px system-ui, sans-serif';
+  ctx.fillText(sub, W / 2, H / 2 + 24);
+}
+
+function draw() {
+  drawScene();
+  for (const lane of lanes) for (const c of lane.cars) drawCar(c, lane.y, lane.dir);
+  if (state !== 'title') drawPlayer();
+
+  if (state === 'title') overlay('Road Crossing', 'Press Space (or tap) to start');
+  else if (state === 'paused') overlay('Paused', 'Press P to continue');
+  else if (state === 'levelup') overlay(`Level ${level} complete!`, 'Traffic is getting faster…');
+  else if (state === 'gameover') overlay('Game Over', `You reached level ${level} · Space to play again`);
+  else if (state === 'hit' && lives > 0) overlay('Ouch!', `${lives} ${lives === 1 ? 'life' : 'lives'} left`);
+}
+
+// ---------- Input ----------
+function setKey(e, down) {
+  if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') keys.up = down;
+  else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keys.down = down;
+  else return false;
+  return true;
+}
+
+addEventListener('keydown', e => {
+  if (setKey(e, true) || e.key === ' ') e.preventDefault();
+  if ((e.key === ' ' || e.key === 'Enter') && (state === 'title' || state === 'gameover')) newGame();
+  if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+    if (state === 'playing') state = 'paused';
+    else if (state === 'paused') state = 'playing';
+  }
+});
+addEventListener('keyup', e => setKey(e, false));
+addEventListener('blur', () => {
+  keys.up = keys.down = false;
+  if (state === 'playing') state = 'paused';
+});
+
+// Touch / mouse: hold above the man to walk up, below him to walk down.
+canvas.addEventListener('pointerdown', e => {
+  if (state === 'title' || state === 'gameover') { newGame(); return; }
+  if (state === 'paused') { state = 'playing'; return; }
+  const rect = canvas.getBoundingClientRect();
+  const y = (e.clientY - rect.top) * (H / rect.height);
+  keys.up = y < player.y;
+  keys.down = !keys.up;
+});
+addEventListener('pointerup', () => { keys.up = keys.down = false; });
+
+// ---------- Main loop ----------
+buildLanes();
+resetPlayer();
+updateHud();
+
+let lastTime = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - lastTime) / 1000);   // clamp so a background tab doesn't teleport cars
+  lastTime = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
