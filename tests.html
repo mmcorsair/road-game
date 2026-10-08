@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Road Crossing — tests</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 24px 16px; background: #1d2330; color: #eee;
+         font: 14px/1.5 system-ui, -apple-system, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { opacity: .65; margin: 0 0 18px; }
+  #summary { font-size: 18px; font-weight: 600; padding: 12px 16px; border-radius: 10px;
+             background: #2a3142; margin-bottom: 16px; }
+  #summary.pass { background: #1e4d33; }
+  #summary.fail { background: #5a1f24; }
+  button { font: inherit; padding: 6px 14px; border-radius: 8px; border: none; background: #3a4358;
+           color: #eee; cursor: pointer; margin-left: 12px; }
+  h2 { font-size: 15px; margin: 18px 0 6px; opacity: .8; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { padding: 4px 8px; border-radius: 6px; }
+  li.fail { background: rgba(231, 76, 60, .15); }
+  li .ms { opacity: .45; font-size: 12px; margin-left: 6px; }
+  li pre { margin: 4px 0 2px 24px; white-space: pre-wrap; color: #ffb3a7; font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Road Crossing — tests</h1>
+  <p class="sub">Runs the real game code without its main loop and steps it frame by frame.
+     Your saved high score, skin, daily results and settings are restored afterwards.</p>
+  <div id="summary">Running…</div>
+  <div id="results"></div>
+</main>
+
+<!-- Game elements the scripts look up are created here on demand (see tests/tests.js). -->
+<div id="sandbox" hidden></div>
+
+<script>
+  // Must run before the game scripts: stop the main loop and provide any element they ask for.
+  window.requestAnimationFrame = () => 0;
+  const realGetElementById = document.getElementById.bind(document);
+  document.getElementById = id => realGetElementById(id) || (() => {
+    const tag = id === 'game' ? 'canvas' : /(Btn|Link|Close)$/.test(id) ? 'button' : 'div';
+    const el = document.createElement(tag);
+    el.id = id;
+    if (id === 'skins' || id === 'shareBtn') el.hidden = true;
+    realGetElementById('sandbox').append(el);
+    return el;
+  })();
+</script>
+
+<!-- Same scripts, same order as index.html. -->
+<script src="js/config.js"></script>
+<script src="js/state.js"></script>
+<script src="js/sound.js"></script>
+<script src="js/effects.js"></script>
+<script src="js/traffic.js"></script>
+<script src="js/rail.js"></script>
+<script src="js/lanechange.js"></script>
+<script src="js/player.js"></script>
+<script src="js/pickups.js"></script>
+<script src="js/skins.js"></script>
+<script src="js/daily.js"></script>
+<script src="js/game.js"></script>
+<script src="js/render.js"></script>
+<script src="js/input.js"></script>
+<script src="js/main.js"></script>
+
+<script src="tests/tests.js"></script>
+</body>
+</html>
