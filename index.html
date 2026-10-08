@@ -18,8 +18,9 @@
 <body>
 <div id="hud">
   <span id="level">Level 1</span>
+  <span id="score">Score 0</span>
   <span id="lives"></span>
-  <span id="best">Best: 1</span>
+  <span id="hiscore">Hi 0</span>
 </div>
 <canvas id="game"></canvas>
 <div id="help">↑ / ↓ — move &nbsp;·&nbsp; Space — start &nbsp;·&nbsp; P — pause &nbsp;·&nbsp; M — sound: <span id="sound">on</span></div>
@@ -37,6 +38,10 @@ const BIKE_LEVEL = 2;                     // motorbikes appear from this level
 const EMERGENCY_LEVEL = 3;                // emergency vehicles appear from this level
 const EMERGENCY_MIN = 10, EMERGENCY_MAX = 18;  // seconds between emergency vehicles
 const EMERGENCY_WARN = 2.5;               // siren + flashing warning this long before it enters
+const TIME_LIMIT = 30;                    // seconds per attempt; running out costs a life
+const PROGRESS_POINTS = 10;               // per lane crossed for the first time in a level
+const LEVEL_POINTS = 100;                 // × level, for reaching the finish
+const TIME_POINTS = 10;                   // per second left on the clock at the finish
 const CAR_COLORS =['#e74c3c', '#3498db', '#f1c40f', '#9b59b6', '#1abc9c', '#e67e22', '#ecf0f1', '#2ecc71'];
 
 const canvas = document.getElementById('game');
@@ -49,17 +54,18 @@ ctx.scale(dpr, dpr);
 const rand = (a, b) => a + Math.random() * (b - a);
 
 // ---------- Game state ----------
-let level = 1, lives = START_LIVES, best = loadBest();
+let level = 1, lives = START_LIVES, score = 0, hiScore = loadHiScore(), newHighScore = false;
+let timeLeft = TIME_LIMIT, lastTick = 0, levelProgress = 0, levelBonus = null, hitReason = 'car', popups = [];
 let lanes = [], player, state = 'title', stateTimer = 0;
 let emergencyTimer = 0, stopSiren = () => {};
 const keys = { up: false, down: false };
 
-function loadBest() {
-  try { return Number(localStorage.getItem('roadCrossingBest')) || 1; } catch { return 1; }
+function loadHiScore() {
+  try { return Number(localStorage.getItem('roadCrossingHiScore')) || 0; } catch { return 0; }
 }
-function saveBest() {
-  best = Math.max(best, level);
-  try { localStorage.setItem('roadCrossingBest', best); } catch {}
+function saveHiScore() {
+  hiScore = Math.max(hiScore, score);
+  try { localStorage.setItem('roadCrossingHiScore', hiScore); } catch {}
 }
 
 // ---------- Sound (synthesized with Web Audio, no files needed) ----------
@@ -160,6 +166,12 @@ const sfx = {
   },
   levelUp() {
     [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.28, { type: 'triangle', gain: 0.22, delay: i * 0.11 }));
+  },
+  point() { tone(1200, 0.07, { type: 'sine', gain: 0.1 }); },
+  tick()  { tone(1600, 0.04, { gain: 0.06 }); },
+  timeUp() {                            // dissonant buzzer
+    tone(220, 0.6, { gain: 0.15, hold: 0.4 });
+    tone(233, 0.6, { gain: 0.15, hold: 0.4 });
   },
   // Wailing siren that swells during the warning, then pans across as the vehicle passes.
   // Returns a function that stops it early.
@@ -369,14 +381,48 @@ function hitsCar() {
 function newGame() {
   level = 1;
   lives = START_LIVES;
+  score = 0;
+  newHighScore = false;
+  levelProgress = 0;
+  popups = [];
   buildLanes();
-  resetPlayer();
+  startAttempt();
   state = 'playing';
   updateHud();
   sfx.start();
 }
 
+// Every attempt (new level or after losing a life) starts on the sidewalk with a full clock.
+function startAttempt() {
+  resetPlayer();
+  timeLeft = TIME_LIMIT;
+  lastTick = 0;
+}
+
+function addScore(points, x, y) {
+  score += points;
+  popups.push({ text: `+${points}`, x, y, t: 1 });
+  updateHud();
+}
+
+function loseLife(reason) {
+  lives--;
+  hitReason = reason;
+  state = 'hit';
+  stateTimer = 1.2;
+  updateHud();
+  // Cancel any announced emergency vehicle, since traffic freezes and the siren would be out of sync.
+  silenceSiren();
+  for (const l of lanes) l.emergency = null;
+  if (reason === 'car') sfx.crash(); else sfx.timeUp();
+}
+
 function update(dt) {
+  if (state !== 'paused') {
+    for (const p of popups) { p.t -= dt; p.y -= 30 * dt; }
+    popups = popups.filter(p => p.t > 0);
+  }
+
   switch (state) {
     case 'title':
     case 'gameover':
@@ -396,21 +442,31 @@ function update(dt) {
       honkAtPlayer();
       if (level >= EMERGENCY_LEVEL && (emergencyTimer -= dt) <= 0) dispatchEmergency();
 
+      timeLeft -= dt;
+      const sec = Math.ceil(timeLeft);
+      if (sec <= 5 && sec > 0 && sec !== lastTick) { lastTick = sec; sfx.tick(); }
+
       if (hitsCar()) {
-        lives--;
-        updateHud();
-        state = 'hit';
-        stateTimer = 1.2;
-        // Cancel any announced emergency vehicle, since traffic freezes and the siren would be out of sync.
-        silenceSiren();
-        for (const l of lanes) l.emergency = null;
-        sfx.crash();
+        loseLife('car');
+      } else if (timeLeft <= 0) {
+        loseLife('time');
       } else if (player.y + PLAYER_SIZE / 2 < FINISH_H) {
+        const levelPoints = LEVEL_POINTS * level;
+        const timePoints = Math.ceil(timeLeft) * TIME_POINTS;
+        levelBonus = { levelPoints, timePoints };
+        addScore(levelPoints + timePoints, player.x, player.y);
         state = 'levelup';
-        stateTimer = 1.5;
-        saveBest();
+        stateTimer = 2.2;
         silenceSiren();
         sfx.levelUp();
+      } else {
+        // Points for each lane crossed for the first time this level (not re-awarded after a crash).
+        const crossed = lanes.filter(l => player.y < l.y - LANE_H / 2).length;
+        if (crossed > levelProgress) {
+          addScore((crossed - levelProgress) * PROGRESS_POINTS, player.x + 28, player.y);
+          levelProgress = crossed;
+          sfx.point();
+        }
       }
       break;
     }
@@ -418,8 +474,14 @@ function update(dt) {
     case 'hit':                       // traffic freezes briefly after an accident
       stateTimer -= dt;
       if (stateTimer <= 0) {
-        if (lives > 0) { resetPlayer(); state = 'playing'; }
-        else { state = 'gameover'; saveBest(); updateHud(); sfx.gameOver(); }
+        if (lives > 0) { startAttempt(); state = 'playing'; }
+        else {
+          state = 'gameover';
+          newHighScore = score > hiScore;
+          saveHiScore();
+          updateHud();
+          sfx.gameOver();
+        }
       }
       break;
 
@@ -428,9 +490,9 @@ function update(dt) {
       stateTimer -= dt;
       if (stateTimer <= 0) {
         level++;
-        saveBest();
+        levelProgress = 0;
         buildLanes();
-        resetPlayer();
+        startAttempt();
         state = 'playing';
         updateHud();
       }
@@ -440,8 +502,9 @@ function update(dt) {
 
 function updateHud() {
   document.getElementById('level').textContent = `Level ${level}`;
+  document.getElementById('score').textContent = `Score ${score}`;
   document.getElementById('lives').textContent = '❤️'.repeat(Math.max(0, lives)) || '💀';
-  document.getElementById('best').textContent = `Best: ${best}`;
+  document.getElementById('hiscore').textContent = `Hi ${Math.max(hiScore, score)}`;
   document.getElementById('sound').textContent = sound.muted ? 'off' : 'on';
 }
 
@@ -624,9 +687,10 @@ function drawEmergencyWarnings(now) {
 }
 
 function drawPlayer() {
+  const crashed = state === 'hit' && hitReason === 'car';
   ctx.save();
   ctx.translate(player.x, player.y);
-  if (state === 'hit') ctx.rotate((1.2 - stateTimer) * 10);   // spin after being bumped
+  if (crashed) ctx.rotate((1.2 - stateTimer) * 10);          // spin after being bumped
   else if (player.facing > 0) ctx.rotate(Math.PI);           // sprite is drawn facing up
 
   const swing = Math.sin(player.walk) * 5;
@@ -643,22 +707,55 @@ function drawPlayer() {
   ellipse(0, 0.5, 5.5, 4.5, '#6b4226');        // hair
   ctx.restore();
 
-  if (state === 'hit') {
+  if (crashed) {
     ctx.fillStyle = `rgba(255,60,60,${stateTimer / 2})`;
     ctx.beginPath(); ctx.arc(player.x, player.y, 30, 0, Math.PI * 2); ctx.fill();
   }
 }
 
-function overlay(title, sub) {
+// Countdown bar along the bottom of the sidewalk; blinks during the last 5 seconds.
+function drawTimer(now) {
+  const frac = Math.max(0, timeLeft / TIME_LIMIT);
+  const x = 10, y = H - 12, w = W - 20, h = 6;
+  ctx.fillStyle = 'rgba(0,0,0,.3)';
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 3); ctx.fill();
+  if (timeLeft <= 5 && state === 'playing' && Math.floor(now / 200) % 2) return;
+  ctx.fillStyle = frac > 0.5 ? '#2ecc71' : frac > 0.2 ? '#f4b400' : '#e74c3c';
+  ctx.beginPath(); ctx.roundRect(x, y, w * frac, h, 3); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 13px system-ui, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(`⏱ ${Math.max(0, Math.ceil(timeLeft))}`, W - 10, y - 2);
+}
+
+function drawPopups() {
+  ctx.font = 'bold 16px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 3;
+  for (const p of popups) {
+    ctx.globalAlpha = Math.min(1, p.t * 2);
+    ctx.strokeStyle = 'rgba(0,0,0,.6)';
+    ctx.strokeText(p.text, p.x, p.y);
+    ctx.fillStyle = '#ffe36e';
+    ctx.fillText(p.text, p.x, p.y);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function overlay(title, ...lines) {
+  const boxH = 90 + lines.length * 24;
   ctx.fillStyle = 'rgba(0,0,0,.6)';
-  ctx.fillRect(0, H / 2 - 70, W, 140);
+  ctx.fillRect(0, H / 2 - boxH / 2, W, boxH);
   ctx.fillStyle = '#fff';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = 'bold 34px system-ui, sans-serif';
-  ctx.fillText(title, W / 2, H / 2 - 18);
+  const top = H / 2 - boxH / 2 + 38;
+  ctx.fillText(title, W / 2, top);
   ctx.font = '16px system-ui, sans-serif';
-  ctx.fillText(sub, W / 2, H / 2 + 24);
+  lines.forEach((line, i) => ctx.fillText(line, W / 2, top + 42 + i * 24));
 }
 
 function nextLevelHint() {
@@ -673,13 +770,25 @@ function draw() {
   drawReversibleLanes(now);
   for (const lane of lanes) for (const c of lane.cars) drawCar(c, lane.y, lane.dir, now);
   drawEmergencyWarnings(now);
-  if (state !== 'title') drawPlayer();
+  if (state !== 'title') {
+    drawPlayer();
+    drawTimer(now);
+  }
+  drawPopups();
 
-  if (state === 'title') overlay('Road Crossing', 'Press Space (or tap) to start');
-  else if (state === 'paused') overlay('Paused', 'Press P to continue');
-  else if (state === 'levelup') overlay(`Level ${level} complete!`, nextLevelHint());
-  else if (state === 'gameover') overlay('Game Over', `You reached level ${level} · Space to play again`);
-  else if (state === 'hit' && lives > 0) overlay('Ouch!', `${lives} ${lives === 1 ? 'life' : 'lives'} left`);
+  if (state === 'title') {
+    overlay('Road Crossing', 'Cross before the clock runs out', 'Press Space (or tap) to start');
+  } else if (state === 'paused') {
+    overlay('Paused', 'Press P to continue');
+  } else if (state === 'levelup') {
+    overlay(`Level ${level} complete!`,
+      `+${levelBonus.levelPoints} level  ·  +${levelBonus.timePoints} time bonus`, nextLevelHint());
+  } else if (state === 'gameover') {
+    overlay('Game Over', `Score ${score}  ·  level ${level}`,
+      newHighScore ? '🏆 New high score!' : `High score ${hiScore}`, 'Space to play again');
+  } else if (state === 'hit' && lives > 0) {
+    overlay(hitReason === 'time' ? "Time's up!" : 'Ouch!', `${lives} ${lives === 1 ? 'life' : 'lives'} left`);
+  }
 }
 
 // ---------- Input ----------
