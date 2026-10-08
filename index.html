@@ -30,6 +30,8 @@ const W = 480, H = 640;
 const FINISH_H = 64, START_H = 64, LANE_H = 48, MEDIAN_H = 32, LANES_PER_SIDE = 5;
 const MEDIAN_Y = FINISH_H + LANES_PER_SIDE * LANE_H;          // top of the median strip
 const PLAYER_SPEED = 150, PLAYER_SIZE = 22, START_LIVES = 3;
+const REVERSE_MIN = 6, REVERSE_MAX = 12;  // seconds between direction changes of a reversible lane
+const MIN_WARNING = 2;                    // a reversing lane blinks at least this long before flipping
 const CAR_COLORS = ['#e74c3c', '#3498db', '#f1c40f', '#9b59b6', '#1abc9c', '#e67e22', '#ecf0f1', '#2ecc71'];
 
 const canvas = document.getElementById('game');
@@ -80,7 +82,15 @@ function buildLanes() {
       ? FINISH_H + i * LANE_H + LANE_H / 2
       : MEDIAN_Y + MEDIAN_H + (i - LANES_PER_SIDE) * LANE_H + LANE_H / 2;
     // Right-hand traffic seen from above: upper half drives left, lower half drives right.
-    lanes.push({ y, dir: top ? -1 : 1, speed: rand(70, 150) * speedMul, cars: [], nextGap: pickGap() });
+    lanes.push({ y, dir: top ? -1 : 1, speed: rand(70, 150) * speedMul, cars: [], nextGap: pickGap(),
+                 reversible: false, switchTimer: 0, draining: false, drainTime: 0 });
+  }
+  // A few random lanes periodically reverse direction; more of them on higher levels.
+  const reversibleCount = Math.min(1 + Math.floor((level - 1) / 2), 4);
+  const shuffled = [...lanes].sort(() => Math.random() - 0.5);
+  for (const lane of shuffled.slice(0, reversibleCount)) {
+    lane.reversible = true;
+    lane.switchTimer = rand(REVERSE_MIN, REVERSE_MAX);
   }
   // Pre-simulate so the road is already full of traffic.
   for (const lane of lanes) for (let t = 0; t < 30; t += 0.05) updateLane(lane, 0.05);
@@ -89,6 +99,22 @@ function buildLanes() {
 function updateLane(lane, dt) {
   for (const c of lane.cars) c.x += lane.dir * lane.speed * dt;
   lane.cars = lane.cars.filter(c => c.x + c.w / 2 > -150 && c.x - c.w / 2 < W + 150);
+
+  // Reversible lanes: stop letting cars in, wait until the lane is empty, then flip direction.
+  if (lane.reversible) {
+    if (!lane.draining) {
+      lane.switchTimer -= dt;
+      if (lane.switchTimer <= 0) { lane.draining = true; lane.drainTime = 0; }
+    } else {
+      lane.drainTime += dt;
+      if (!lane.cars.length && lane.drainTime >= MIN_WARNING) {
+        lane.dir *= -1;
+        lane.draining = false;
+        lane.switchTimer = rand(REVERSE_MIN, REVERSE_MAX);
+      }
+    }
+    if (lane.draining) return;
+  }
 
   // Distance from the entry edge of the screen to the rear of the most recently spawned car.
   const last = lane.cars[lane.cars.length - 1];
@@ -239,6 +265,40 @@ function drawScene() {
   ctx.fillRect(0, H - START_H, W, 4);   // curb
 }
 
+// Reversible lanes get an amber tint and painted arrows showing the traffic direction.
+// While a lane is about to reverse, the arrows blink amber and point the new way.
+function drawReversibleLanes(now) {
+  for (const lane of lanes) {
+    if (!lane.reversible) continue;
+    ctx.fillStyle = 'rgba(244,180,0,.10)';
+    ctx.fillRect(0, lane.y - LANE_H / 2, W, LANE_H);
+
+    let dir = lane.dir, color = 'rgba(255,255,255,.35)';
+    if (lane.draining) {
+      if (Math.floor(now / 250) % 2) continue;   // blink
+      dir = -lane.dir;
+      color = '#f4b400';
+    }
+    ctx.fillStyle = color;
+    for (const x of [W * 0.15, W * 0.5, W * 0.85]) {
+      ctx.save();
+      ctx.translate(x, lane.y);
+      ctx.scale(dir, 1);
+      ctx.beginPath();
+      ctx.moveTo(14, 0);
+      ctx.lineTo(2, -9);
+      ctx.lineTo(2, -4);
+      ctx.lineTo(-14, -4);
+      ctx.lineTo(-14, 4);
+      ctx.lineTo(2, 4);
+      ctx.lineTo(2, 9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+}
+
 function drawCar(c, y, dir) {
   const { w, h } = c;
   ctx.save();
@@ -314,12 +374,13 @@ function overlay(title, sub) {
 
 function draw() {
   drawScene();
+  drawReversibleLanes(performance.now());
   for (const lane of lanes) for (const c of lane.cars) drawCar(c, lane.y, lane.dir);
   if (state !== 'title') drawPlayer();
 
   if (state === 'title') overlay('Road Crossing', 'Press Space (or tap) to start');
   else if (state === 'paused') overlay('Paused', 'Press P to continue');
-  else if (state === 'levelup') overlay(`Level ${level} complete!`, 'Traffic is getting faster…');
+  else if (state === 'levelup') overlay(`Level ${level} complete!`, 'Faster traffic, more reversing lanes…');
   else if (state === 'gameover') overlay('Game Over', `You reached level ${level} · Space to play again`);
   else if (state === 'hit' && lives > 0) overlay('Ouch!', `${lives} ${lives === 1 ? 'life' : 'lives'} left`);
 }
