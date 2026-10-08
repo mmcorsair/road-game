@@ -100,6 +100,7 @@ function drawCar(c, y, dir, now) {
   const { w, h } = c;
   ctx.save();
   ctx.translate(c.x, y);
+  if (c.dyRate) ctx.rotate(dir * Math.atan2(c.dyRate, Math.max(c.v, 30)) * 0.5);   // nose into a lane change
   if (dir < 0) ctx.scale(-1, 1);       // after this, the vehicle's front always points to +x
 
   ctx.fillStyle = 'rgba(0,0,0,.3)';
@@ -120,6 +121,7 @@ function drawCar(c, y, dir, now) {
     ctx.fillRect(w / 2 - 2, -1.5, 2, 3);
     ctx.fillStyle = c.braking ? '#ff1a1a' : '#a01010';
     ctx.fillRect(-w / 2, -1.5, c.braking ? 3 : 2, 3);
+    drawTurnSignals(c, now);
     ctx.restore();
     return;
   }
@@ -166,6 +168,7 @@ function drawCar(c, y, dir, now) {
   ctx.fillStyle = c.braking ? '#ff1a1a' : '#b81c1c';   // tail lights
   ctx.fillRect(-w / 2, -h / 2 + 3, c.braking ? 3 : 2, 6);
   ctx.fillRect(-w / 2, h / 2 - 9, c.braking ? 3 : 2, 6);
+  drawTurnSignals(c, now);
   ctx.restore();
 }
 
@@ -342,7 +345,7 @@ function draw() {
   drawParticles(true);                       // exhaust, beneath the vehicles
   drawEmergencyGlow(now);
   drawPickups(now);                          // lying on the road; vehicles drive over them
-  for (const lane of lanes) for (const c of lane.cars) drawCar(c, lane.y, lane.dir, now);
+  for (const lane of lanes) for (const c of lane.cars) drawCar(c, vehicleY(c, lane), lane.dir, now);
   drawEmergencyWarnings(now);
   if (state !== 'title') {
     drawPowerUpStatus();

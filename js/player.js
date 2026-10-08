@@ -9,8 +9,8 @@ function resetPlayer() {
 // Cars honk once when they are about to run into the player.
 function honkAtPlayer() {
   for (const lane of lanes) {
-    if (Math.abs(lane.y - player.y) > LANE_H / 2) continue;
     for (const c of lane.cars) {
+      if (Math.abs(vehicleY(c, lane) - player.y) > LANE_H / 2) continue;
       const gap = (player.x - c.x) * lane.dir - c.w / 2 - PLAYER_SIZE / 2;  // distance from bumper to player
       if (!c.honked && c.kind !== 'emergency' && c.kind !== 'train' && gap > 0 && gap < 70) {
         c.honked = true;
@@ -27,7 +27,7 @@ function hitsCar() {
     if (Math.abs(lane.y - player.y) > LANE_H) continue;
     for (const c of lane.cars) {
       if (Math.abs(c.x - player.x) < c.w / 2 - 2 + s &&
-          Math.abs(lane.y - player.y) < c.h / 2 - 2 + s) return { car: c, lane };
+          Math.abs(vehicleY(c, lane) - player.y) < c.h / 2 - 2 + s) return { car: c, lane };
     }
   }
   return null;

@@ -74,7 +74,7 @@ function emitExhaust(dt) {
       if (c.puff > 0) continue;
       c.puff = rand(0.25, 0.5);
       const tailX = c.x - lane.dir * (c.w / 2 + 2);
-      if (c.kind !== 'train' && c.v > 5 && tailX > 0 && tailX < W) fx.exhaust(tailX, lane.y + c.h / 4, lane.dir);
+      if (c.kind !== 'train' && c.v > 5 && tailX > 0 && tailX < W) fx.exhaust(tailX, vehicleY(c, lane) + c.h / 4, lane.dir);
     }
   }
 }

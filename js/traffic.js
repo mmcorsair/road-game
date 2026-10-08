@@ -42,7 +42,7 @@ function buildLanes() {
       ? FINISH_H + i * LANE_H + LANE_H / 2
       : MEDIAN_Y + MEDIAN_H + (i - LANES_PER_SIDE) * LANE_H + LANE_H / 2;
     // Right-hand traffic seen from above: upper half drives left, lower half drives right.
-    lanes.push({ y, dir: top ? -1 : 1, speed: rand(70, 150) * speedMul, cars: [], nextGap: pickGap(),
+    lanes.push({ index: i, y, dir: top ? -1 : 1, speed: rand(70, 150) * speedMul, cars: [], nextGap: pickGap(),
                  reversible: false, switchTimer: 0, draining: false, drainTime: 0, emergency: null, rail: null });
   }
   // A few random lanes periodically reverse direction; more of them on higher levels.
@@ -55,14 +55,17 @@ function buildLanes() {
     lane.reversible = true;
     lane.switchTimer = rand(REVERSE_MIN, REVERSE_MAX);
   }
-  // Pre-simulate so the road is already full of traffic.
+  // Pre-simulate so the road is already full of traffic (lane by lane, so no lane changes).
+  presimulating = true;
   for (const lane of lanes) for (let t = 0; t < 30; t += 0.05) updateLane(lane, 0.05);
+  presimulating = false;
 }
 
 // Moves vehicles front to back; each one keeps its own speed but brakes behind a slower vehicle.
 function moveVehicles(lane, dt) {
   for (let i = 0; i < lane.cars.length; i++) {
-    const c = lane.cars[i], ahead = lane.cars[i - 1];   // cars[] is in spawn order: index 0 is in front
+    const c = lane.cars[i], ahead = lane.cars[i - 1];   // cars[] is ordered front to back: index 0 is in front
+    animateLaneChange(c, dt);
     const gapTo = () => (ahead.x - c.x) * lane.dir - (ahead.w + c.w) / 2;
     let target = c.speed;
     if (ahead) {
@@ -83,6 +86,7 @@ function moveVehicles(lane, dt) {
 function updateLane(lane, dt) {
   moveVehicles(lane, dt);
   if (lane.rail) { updateRail(lane, dt); return; }
+  if (!presimulating) updateLaneChanges(lane, dt);
 
   // Reversible lanes: stop letting cars in, wait until the lane is empty, then flip direction.
   if (lane.reversible) {

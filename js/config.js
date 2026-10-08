@@ -16,6 +16,8 @@ const LEVELUP_TIME = 2.2;                 // seconds the level-complete celebrat
 const TRAIN_MIN = 6, TRAIN_MAX = 12;      // seconds between trains on a railway lane
 const TRAIN_WARN = 2.5;                   // lights + bell this long before a train arrives
 const TRAIN_SPEED_MIN = 420, TRAIN_SPEED_MAX = 560;   // px/s
+const LANE_CHANGE_SIGNAL = 1;             // seconds a vehicle blinks before changing lanes
+const LANE_CHANGE_TIME = 0.8;             // seconds the move to the next lane takes
 const TIME_LIMIT = 30;                    // seconds per attempt; running out costs a life
 const PROGRESS_POINTS = 10;               // per lane crossed for the first time in a level
 const LEVEL_POINTS = 100;                 // × level, for reaching the finish
