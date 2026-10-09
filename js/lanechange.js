@@ -7,12 +7,15 @@ let presimulating = false;       // no lane changes while buildLanes() fast-forw
 
 const vehicleY = (c, lane) => lane.y + (c.dy || 0);
 
-// Per-kind behaviour: signal time, glide time, extra safety gap (px), how eager they are, and how
-// often (seconds, min–max) they look for a chance to change lanes. Motorbikes weave through traffic.
+// Per-kind behaviour: signal time, glide time, extra safety gap (px), reaction margin (s of closing
+// speed added to the gap), how eager they are, and how often (s, min–max) they look for a chance.
+// Motorbikes weave through traffic. Trucks are slow, so faster cars behind always close in; after a
+// long, clear signal the drivers behind are ready, so trucks get a shorter reaction margin — otherwise
+// they would almost never find a gap.
 const LANE_CHANGERS = {
-  car:   { signal: LANE_CHANGE_SIGNAL, time: LANE_CHANGE_TIME, gap: 30, eagerness: 1,   every: [1.5, 4] },
-  bike:  { signal: BIKE_SIGNAL,        time: BIKE_CHANGE_TIME, gap: 18, eagerness: 1.6, every: [0.6, 1.8] },
-  truck: { signal: TRUCK_SIGNAL,       time: TRUCK_CHANGE_TIME, gap: 55, eagerness: 0.5, every: [1.5, 4] },
+  car:   { signal: LANE_CHANGE_SIGNAL, time: LANE_CHANGE_TIME, gap: 30, reaction: 0.8, eagerness: 1,   every: [1.5, 4] },
+  bike:  { signal: BIKE_SIGNAL,        time: BIKE_CHANGE_TIME, gap: 18, reaction: 0.8, eagerness: 1.6, every: [0.6, 1.8] },
+  truck: { signal: TRUCK_SIGNAL,       time: TRUCK_CHANGE_TIME, gap: 40, reaction: 0.3, eagerness: 0.9, every: [1.2, 3] },
 };
 
 // Neighbouring lanes a vehicle could move into: same side of the median, same direction, ordinary road.
@@ -24,13 +27,17 @@ function laneChangeTargets(lane) {
 }
 
 // Is there a safe gap in `target` for vehicle c, including room for faster traffic behind?
-function hasRoom(target, c) {
+// `yielding`: the vehicle has already been signalling, so drivers around it make way — only a smaller
+// gap plus safe braking room is needed (otherwise slow vehicles would cancel almost every time).
+function hasRoom(target, c, yielding = false) {
   for (const t of target.cars) {
     const ahead = (t.x - c.x) * target.dir > 0;
     const gap = Math.abs(t.x - c.x) - (t.w + c.w) / 2;
     const closing = Math.max(0, ahead ? c.v - t.v : t.v - c.v);   // how fast the gap is shrinking
     const stopping = closing * closing / (2 * brakeDecel());        // room the closing vehicle needs to brake
-    if (gap < LANE_CHANGERS[c.kind].gap + closing * 0.8 + stopping) return false;
+    const style = LANE_CHANGERS[c.kind];
+    const needed = yielding ? style.gap * 0.6 + stopping : style.gap + closing * style.reaction + stopping;
+    if (gap < needed) return false;
   }
   return true;
 }
@@ -42,7 +49,7 @@ function updateLaneChanges(lane, dt) {
     if (c.signal) {
       if ((c.signal.t -= dt) > 0) continue;
       const target = c.signal.target;
-      if (laneChangeTargets(lane).includes(target) && hasRoom(target, c)) moveToLane(c, lane, target);
+      if (laneChangeTargets(lane).includes(target) && hasRoom(target, c, true)) moveToLane(c, lane, target);
       else c.signal = null;                             // the gap closed: give up for now
       c.laneTimer = rand(...style.every);
       continue;

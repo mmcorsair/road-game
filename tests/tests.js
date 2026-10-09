@@ -399,6 +399,27 @@
         `bike ${(rate('bike') * 60).toFixed(1)} vs car ${(rate('car') * 60).toFixed(1)} changes per minute on screen`);
     });
 
+    test('trucks do change lanes — less often than cars, but regularly', () => {
+      const original = moveToLane;
+      const changes = { car: 0, truck: 0 }, onRoad = { car: 0, truck: 0 };
+      moveToLane = (c, from, to) => { if (c.kind in changes) changes[c.kind]++; return original(c, from, to); };
+      try {
+        // Trucks are rare, so this needs several minutes of traffic (average is ~0.7 per minute).
+        for (const lvl of [3, 4, 5, 6, 7, 8]) {
+          startPlaying({ lvl });
+          run(60, () => {
+            onSidewalk();
+            for (const l of lanes) for (const c of l.cars) if (c.kind in onRoad && c.x > 0 && c.x < W) onRoad[c.kind] += DT;
+          });
+        }
+      } finally {
+        moveToLane = original;
+      }
+      const perMin = k => changes[k] / onRoad[k] * 60;
+      assert(perMin('truck') > 0.2, `trucks: ${perMin('truck').toFixed(2)} lane changes per minute on screen`);
+      assert(perMin('truck') < perMin('car'), `trucks ${perMin('truck').toFixed(2)} vs cars ${perMin('car').toFixed(2)}`);
+    });
+
     test('trucks signal longer and move more slowly than cars', () => {
       assert(LANE_CHANGERS.truck.signal > LANE_CHANGERS.car.signal, 'signal');
       assert(LANE_CHANGERS.truck.time > LANE_CHANGERS.car.time, 'glide');
