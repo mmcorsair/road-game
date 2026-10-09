@@ -80,3 +80,21 @@ body.touch #controls { display: contents; }   /* its pads become cells of the #s
             padding: 10px 22px; border: none; border-radius: 22px; background: #2ecc71; color: #fff;
             font: bold 16px system-ui, sans-serif; box-shadow: 0 4px 14px rgba(0, 0, 0, .4); cursor: pointer; }
 #shareBtn[hidden] { display: none; }
+
+/* ---------- Panel tabs & achievements list ---------- */
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tab { background: none; border: none; color: #8a93a6; font: 600 15px system-ui, sans-serif; padding: 6px 10px;
+       border-radius: 8px; cursor: pointer; }
+.tab.active { color: #fff; background: rgba(255, 255, 255, .1); }
+#achCount { font-weight: 400; opacity: .7; font-size: 13px; }
+#achList { display: flex; flex-direction: column; gap: 6px; }
+#achList[hidden], #skinGrid[hidden] { display: none; }
+.ach { display: grid; grid-template-columns: 36px 1fr auto; align-items: center; gap: 10px; padding: 8px 10px;
+       border-radius: 10px; background: rgba(255, 255, 255, .05); color: #8a93a6; font-size: 13px; }
+.ach strong { font-size: 14px; }
+.ach.done { background: rgba(241, 196, 15, .1); color: #eee; }
+.ach-icon { font-size: 22px; text-align: center; filter: grayscale(1) opacity(.45); }
+.ach.done .ach-icon { filter: none; }
+.ach-desc { opacity: .8; }
+.ach-status { font-size: 16px; }
+.ach.done .ach-status { color: #2ecc71; font-weight: 700; }

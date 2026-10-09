@@ -80,6 +80,7 @@ function collectPickup(p) {
   }
   fx.sparkle(p.x, p.y, PICKUP_TYPES[p.type].color);
   sfx.pickup(p.type);
+  achOnPickup(p.type);
 }
 
 // The shield takes the hit instead of the player, then gives a moment of safety to get clear.
@@ -91,6 +92,7 @@ function breakShield(hit) {
   sfx.shieldBreak();
   vibrate(80);
   hit.car.honked = true;
+  unlockAchievement('shield');
 }
 
 // ---------- Pickup drawing ----------

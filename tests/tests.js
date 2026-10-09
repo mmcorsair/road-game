@@ -69,6 +69,8 @@
     banner = null;
     particles = [];
     popups = [];
+    achievements = { unlocked: {}, bonusKinds: [] };
+    toastQueue = [];
     seenTips = new Set(Object.keys(TIPS));   // tips off unless a test turns them on
     activeTip = null;
     tipQueue = [];
@@ -603,6 +605,130 @@
         run(2, onSidewalk);
         draw();
       }
+    });
+  });
+
+  // ================================================================
+  describe('Achievements', () => {
+    // Walk straight to the finish on an empty road; returns once the level is complete.
+    function crossLevel() {
+      quietRoad();
+      player.x = W / 2;
+      player.y = H - START_H / 2;              // (leaves the clock alone)
+      hold('up');
+      run(10, () => state === 'playing');
+      hold('up', false);
+      eq(state, 'levelup');
+    }
+
+    test('completing level 1 quickly and without stopping earns three achievements', () => {
+      startPlaying();
+      crossLevel();
+      for (const id of ['first', 'nonstop', 'speedy']) assert(hasAchievement(id), id);
+      eq(gameAch.earned.length, 3);
+    });
+
+    test('stopping on the way, or finishing slowly, does not count', () => {
+      startPlaying(); quietRoad();
+      run(1, onSidewalk);                        // standing still for a second
+      timeLeft = 15;
+      crossLevel();
+      assert(hasAchievement('first'), 'first');
+      assert(!hasAchievement('nonstop'), 'stopped');
+      assert(!hasAchievement('speedy'), 'slow');
+    });
+
+    test('rain and night levels count only without losing a life', () => {
+      startPlaying({ lvl: 2 });
+      loseLife('time'); run(1.5);
+      crossLevel();
+      assert(!hasAchievement('rain'), 'lost a life in the rain');
+      startPlaying({ lvl: 3 });
+      crossLevel();
+      assert(hasAchievement('night'), 'night owl');
+    });
+
+    test('reaching levels 5, 6 and 10', () => {
+      startPlaying({ lvl: 4 }); crossLevel();
+      assert(hasAchievement('level5') && !hasAchievement('level10'), 'rush hour only');
+      assert(!hasAchievement('flawless'), 'flawless needs level 6');
+      startPlaying({ lvl: 5 }); crossLevel();
+      assert(hasAchievement('flawless'), 'flawless');
+      startPlaying({ lvl: 9 }); crossLevel();
+      assert(hasAchievement('level10'), 'road warrior');
+    });
+
+    test('score milestones', () => {
+      startPlaying();
+      addScore(999, 0, 0);
+      assert(!hasAchievement('score1k'));
+      addScore(1, 0, 0);
+      assert(hasAchievement('score1k') && !hasAchievement('score5k'));
+      addScore(9000, 0, 0);
+      assert(hasAchievement('score5k') && hasAchievement('score10k'));
+    });
+
+    test('5 coins in a game, and every kind of bonus across games', () => {
+      startPlaying(); quietRoad();
+      const grab = type => { pickups = [{ type, x: player.x, y: player.y, t: 5, age: 1 }]; run(DT); };
+      for (let i = 0; i < 4; i++) grab('coin');
+      assert(!hasAchievement('coins'), '4 coins');
+      grab('coin');
+      assert(hasAchievement('coins'), '5 coins');
+      grab('time'); grab('slow'); grab('life');
+      startPlaying(); quietRoad();               // a new game: kinds collected so far are remembered
+      assert(!hasAchievement('hunter'), 'shield still missing');
+      grab('shield');
+      assert(hasAchievement('hunter'), 'bonus hunter');
+    });
+
+    test('a shield taking a hit', () => {
+      startPlaying(); quietRoad();
+      player.shield = true;
+      player.y = lanes[7].y;
+      lanes[7].cars = [plainCar(player.x)];
+      run(DT);
+      assert(hasAchievement('shield'));
+    });
+
+    test('crossing the tracks while the lights flash — but not if the train gets you', () => {
+      startPlaying({ lvl: RAIL_LEVEL });
+      const R = lanes.find(l => l.rail);
+      for (const l of lanes) l.cars = [];
+      Object.assign(R.rail, { phase: 'warning', timer: 99 });
+      player.y = R.y;
+      run(0.2, () => { timeLeft = TIME_LIMIT; });
+      loseLife('time'); run(1.5);                // "hit" on the tracks, back to the sidewalk
+      assert(!hasAchievement('train'), 'no credit after losing a life');
+      player.y = R.y;
+      run(0.2, () => { timeLeft = TIME_LIMIT; });
+      player.y = R.y - LANE_H;                   // stepped off the far side
+      run(0.1, () => { timeLeft = TIME_LIMIT; });
+      assert(hasAchievement('train'), 'beat the train');
+    });
+
+    test('a daily game, a new skin, saving and one banner per achievement', () => {
+      startPlaying({ daily: true }); quietRoad();
+      lives = 1; timeLeft = 0.01;
+      run(1.5);
+      assert(hasAchievement('daily'), 'daily driver');
+      hiScore = 1000;
+      chooseSkin('dog');
+      assert(hasAchievement('style'), 'new look');
+      chooseSkin('kid');
+      const saved = JSON.parse(localStorage.getItem('roadCrossingAchievements'));
+      assert(saved.unlocked.daily && saved.unlocked.style, 'saved');
+      const banners = [banner, ...toastQueue].filter(b => b && b.text.startsWith('🏆'));
+      eq(banners.length, 2, 'one banner each, queued');
+    });
+
+    test('the achievements tab renders and counts', () => {
+      unlockAchievement('first');
+      openSkinPicker('achievements');
+      eq(document.getElementById('achList').children.length, ACHIEVEMENTS.length);
+      eq(document.getElementById('achList').querySelectorAll('.ach.done').length, 1);
+      eq(achievementCount(), `1/${ACHIEVEMENTS.length}`);
+      closeSkinPicker();
     });
   });
 

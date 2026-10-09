@@ -69,6 +69,7 @@ function finishDaily() {
   if (!s.best || score > s.best.score) s.best = { score, level, row: dailyRow.join('') };
   try { localStorage.setItem('roadCrossingDaily', JSON.stringify(s)); } catch {}
   dailyStats = s;
+  unlockAchievement('daily');
 }
 
 function dailyShareText() {

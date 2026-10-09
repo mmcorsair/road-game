@@ -378,8 +378,11 @@ function draw() {
       `+${levelBonus.levelPoints} level  ·  +${levelBonus.timePoints} time bonus`, nextLevelHint(),
       ...(weatherHint(level + 1) ? [weatherHint(level + 1)] : []));
   } else if (state === 'gameover') {
-    const unlockedLine = skinsUnlockedThisGame.length
-      ? [`👕 Unlocked: ${skinsUnlockedThisGame.join(', ')} — try it on!`] : [];
+    const unlockedLine = [
+      ...(skinsUnlockedThisGame.length ? [`👕 Unlocked: ${skinsUnlockedThisGame.join(', ')} — try it on!`] : []),
+      ...(gameAch.earned.length ? [gameAch.earned.length <= 2 ? `🏆 New: ${gameAch.earned.join(', ')}`
+                                                             : `🏆 ${gameAch.earned.length} new achievements!`] : []),
+    ];
     if (mode === 'daily' && dailyStats) {
       const best = dailyStats.best;
       overlay('Daily challenge over', `Score ${score.toLocaleString()}  ·  level ${level}`,

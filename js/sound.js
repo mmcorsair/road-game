@@ -161,6 +161,9 @@ const sfx = {
       src.stop(now + 0.55);
     };
   },
+  achievement() {                       // bright little fanfare
+    [784, 988, 1319, 1568].forEach((f, i) => tone(f, 0.22, { type: 'triangle', gain: 0.16, delay: i * 0.07 }));
+  },
   count() { tone(660, 0.12, { type: 'triangle', gain: 0.18 }); },
   point() { tone(1200, 0.07, { type: 'sine', gain: 0.1 }); },
   tick()  { tone(1600, 0.04, { gain: 0.06 }); },

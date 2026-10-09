@@ -143,6 +143,7 @@ const currentSkin = () => SKINS.find(s => s.id === skinId && isUnlocked(s)) || S
 
 function chooseSkin(id) {
   skinId = id;
+  if (id !== 'classic') unlockAchievement('style');
   try { localStorage.setItem('roadCrossingSkin', id); } catch {}
   renderSkinPicker();
 }
@@ -152,7 +153,7 @@ function checkSkinUnlocks(oldScore) {
   for (const skin of SKINS) {
     if (skin.score > hiScore && oldScore < skin.score && score >= skin.score) {
       skinsUnlockedThisGame.push(skin.name);
-      banner = { text: `🎉 New skin unlocked: ${skin.name}!`, t: 2.5 };
+      toast(`🎉 New skin unlocked: ${skin.name}!`);
       sfx.levelUp();
     }
   }
@@ -177,17 +178,19 @@ function drawBanner() {
   ctx.restore();
 }
 
-// ---------- Skin picker panel ----------
+// ---------- Skins & achievements panel ----------
 const skinPanel = document.getElementById('skins');
 const skinGrid = document.getElementById('skinGrid');
+let panelTab = 'skins';           // 'skins' or 'achievements'
 
 function skinPickerOpen() {
   return !skinPanel.hidden;
 }
 
-function openSkinPicker() {
+function openSkinPicker(tab = 'skins') {
   if (canPause()) setPaused(true);
   releaseKeys();
+  panelTab = tab;
   skinPanel.hidden = false;
   renderSkinPicker();
 }
@@ -199,6 +202,13 @@ function closeSkinPicker() {
 // Rebuilds the cards (cheap: a handful of buttons); previews are animated by drawSkinPreviews().
 function renderSkinPicker() {
   if (skinPanel.hidden) return;
+  for (const tab of document.querySelectorAll('.tab')) tab.classList.toggle('active', tab.dataset.tab === panelTab);
+  document.getElementById('achCount').textContent = achievementCount();
+  skinGrid.hidden = panelTab !== 'skins';
+  document.getElementById('achList').hidden = panelTab !== 'achievements';
+  document.getElementById('panelNote').textContent = panelTab === 'skins'
+    ? 'Unlock more by reaching higher scores.' : 'Achievements are saved in this browser.';
+  if (panelTab === 'achievements') return renderAchievements();
   skinGrid.textContent = '';
   for (const skin of SKINS) {
     const unlocked = isUnlocked(skin);
@@ -219,7 +229,7 @@ function renderSkinPicker() {
 }
 
 function drawSkinPreviews(now) {
-  if (skinPanel.hidden) return;
+  if (skinPanel.hidden || skinGrid.hidden) return;
   for (const c of skinGrid.querySelectorAll('canvas')) {
     const skin = SKINS.find(s => s.id === c.dataset.skin);
     const g = c.getContext('2d');
@@ -234,6 +244,9 @@ function drawSkinPreviews(now) {
 }
 
 document.getElementById('skinsClose').addEventListener('click', closeSkinPicker);
+for (const tab of document.querySelectorAll('.tab')) {
+  tab.addEventListener('click', () => { panelTab = tab.dataset.tab; renderSkinPicker(); });
+}
 skinPanel.addEventListener('click', e => { if (e.target === skinPanel) closeSkinPicker(); });   // click outside the box
 for (const id of ['skinsBtn', 'skinsLink']) {
   const btn = document.getElementById(id);

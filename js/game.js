@@ -11,6 +11,7 @@ function newGame(newMode = 'normal') {
   particles = [];
   banner = null;
   skinsUnlockedThisGame = [];
+  achOnNewGame();
   buildLanes();
   resetPickups();
   startAttempt();
@@ -42,6 +43,7 @@ function addScore(points, x, y) {
   const oldScore = score;
   score += points;
   checkSkinUnlocks(oldScore);
+  achOnScore();
   addPopup(`+${points}`, x, y);
   updateHud();
 }
@@ -49,6 +51,7 @@ function addScore(points, x, y) {
 // `hit` is the { car, lane } that ran the player over, if any.
 function loseLife(reason, hit) {
   lives--;
+  achOnLifeLost();
   hitReason = reason;
   state = 'hit';
   stateTimer = 1.2;
@@ -76,6 +79,7 @@ function update(dt) {
     popups = popups.filter(p => p.t > 0);
     goTimer = Math.max(0, goTimer - dt);
     if (banner && (banner.t -= dt) <= 0) banner = null;
+    pumpToasts();
     updateTips(dt);
     updateEffects(dt);
     updateWeather(dt);
@@ -124,6 +128,7 @@ function update(dt) {
       const trafficDt = slowTimer > 0 ? dt * SLOW_FACTOR : dt;   // slow-traffic power-up
       lanes.forEach(l => updateLane(l, trafficDt));
       honkAtPlayer();
+      achUpdate(dt);
       if (level >= EMERGENCY_LEVEL && (emergencyTimer -= trafficDt) <= 0) dispatchEmergency();
       updatePickups(dt);
 
@@ -147,6 +152,7 @@ function update(dt) {
         stateTimer = LEVELUP_TIME;
         silenceSiren();
         dailyLevelDone();
+        achOnLevelComplete();
         fx.confetti();
         sfx.levelUp();
       } else {
@@ -188,6 +194,7 @@ function update(dt) {
       if (stateTimer <= 0) {
         level++;
         levelProgress = 0;
+        achOnNewLevel();
         buildLanes();
         resetPickups();
         startAttempt();
