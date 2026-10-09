@@ -7,11 +7,12 @@ let presimulating = false;       // no lane changes while buildLanes() fast-forw
 
 const vehicleY = (c, lane) => lane.y + (c.dy || 0);
 
-// Per-kind behaviour: signal time, glide time, extra safety gap (px) and how eager they are (0–1).
+// Per-kind behaviour: signal time, glide time, extra safety gap (px), how eager they are, and how
+// often (seconds, min–max) they look for a chance to change lanes. Motorbikes weave through traffic.
 const LANE_CHANGERS = {
-  car:   { signal: LANE_CHANGE_SIGNAL, time: LANE_CHANGE_TIME, gap: 30, eagerness: 1 },
-  bike:  { signal: LANE_CHANGE_SIGNAL, time: LANE_CHANGE_TIME, gap: 30, eagerness: 1 },
-  truck: { signal: TRUCK_SIGNAL, time: TRUCK_CHANGE_TIME, gap: 55, eagerness: 0.5 },
+  car:   { signal: LANE_CHANGE_SIGNAL, time: LANE_CHANGE_TIME, gap: 30, eagerness: 1,   every: [1.5, 4] },
+  bike:  { signal: BIKE_SIGNAL,        time: BIKE_CHANGE_TIME, gap: 18, eagerness: 1.6, every: [0.6, 1.8] },
+  truck: { signal: TRUCK_SIGNAL,       time: TRUCK_CHANGE_TIME, gap: 55, eagerness: 0.5, every: [1.5, 4] },
 };
 
 // Neighbouring lanes a vehicle could move into: same side of the median, same direction, ordinary road.
@@ -43,12 +44,12 @@ function updateLaneChanges(lane, dt) {
       const target = c.signal.target;
       if (laneChangeTargets(lane).includes(target) && hasRoom(target, c)) moveToLane(c, lane, target);
       else c.signal = null;                             // the gap closed: give up for now
-      c.laneTimer = rand(1.5, 4);
+      c.laneTimer = rand(...style.every);
       continue;
     }
     if (c.change || c.x < 40 || c.x > W - 40) continue;   // only start on screen, so the signal is seen
-    if ((c.laneTimer = (c.laneTimer ?? rand(1, 4)) - dt) > 0) continue;
-    c.laneTimer = rand(1.5, 4);
+    if ((c.laneTimer = (c.laneTimer ?? rand(0.5, style.every[1])) - dt) > 0) continue;
+    c.laneTimer = rand(...style.every);
 
     const i = lane.cars.indexOf(c), ahead = lane.cars[i - 1];
     const stuck = ahead && c.v < c.speed - 15 &&

@@ -370,6 +370,35 @@
       eq(state, 'hit');
     });
 
+    test('motorbikes signal briefly, swerve quickly and squeeze into smaller gaps', () => {
+      const bike = LANE_CHANGERS.bike, car = LANE_CHANGERS.car;
+      assert(bike.signal < car.signal && bike.signal > 0, 'shorter (but real) signal');
+      assert(bike.time < car.time, 'quicker swerve');
+      assert(bike.gap < car.gap, 'smaller gaps');
+      assert(bike.eagerness > car.eagerness && bike.every[1] < car.every[0] + 1, 'more eager');
+    });
+
+    test('motorbikes weave: they change lanes far more often than cars', () => {
+      const original = moveToLane;
+      const changes = { car: 0, bike: 0 }, onRoad = { car: 0, bike: 0 };   // lane changes per vehicle-second
+      moveToLane = (c, from, to) => { if (c.kind in changes) changes[c.kind]++; return original(c, from, to); };
+      try {
+        for (const lvl of [4, 6]) {
+          startPlaying({ lvl });
+          run(60, () => {
+            onSidewalk();
+            for (const l of lanes) for (const c of l.cars) if (c.kind in onRoad && c.x > 0 && c.x < W) onRoad[c.kind] += DT;
+          });
+        }
+      } finally {
+        moveToLane = original;
+      }
+      const rate = k => changes[k] / onRoad[k];
+      assert(onRoad.bike > 20, `enough motorbikes seen (${onRoad.bike.toFixed(0)} s)`);
+      assert(rate('bike') > rate('car') * 2,
+        `bike ${(rate('bike') * 60).toFixed(1)} vs car ${(rate('car') * 60).toFixed(1)} changes per minute on screen`);
+    });
+
     test('trucks signal longer and move more slowly than cars', () => {
       assert(LANE_CHANGERS.truck.signal > LANE_CHANGERS.car.signal, 'signal');
       assert(LANE_CHANGERS.truck.time > LANE_CHANGERS.car.time, 'glide');
