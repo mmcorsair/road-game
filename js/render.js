@@ -136,6 +136,12 @@ function drawCar(c, y, dir, now) {
   ctx.fillStyle = 'rgba(0,0,0,.3)';
   ctx.beginPath(); ctx.roundRect(-w / 2 + 3, -h / 2 + 3, w, h, 6); ctx.fill();
 
+  if (c.kind === 'float' || c.kind === 'roller') {      // boss-level vehicles: no lights to draw
+    if (c.kind === 'float') drawFloat(c, now); else drawRoller(c);
+    ctx.restore();
+    return;
+  }
+
   if (c.kind === 'bike') {
     ctx.fillStyle = '#222';             // tyres, seen from above as one long strip
     ctx.beginPath(); ctx.roundRect(-w / 2, -2, w, 4, 2); ctx.fill();
@@ -311,6 +317,8 @@ function drawEmergencyGlow(now) {
 }
 
 // Big 3-2-1 numbers that zoom in, then "GO!".
+const countdownLabel = () => (boss ? `👑 BOSS: ${BOSS_NAMES[boss]}` : `Level ${level}`);
+
 function drawCountdown() {
   let text, t, color;
   if (state === 'countdown') {
@@ -341,9 +349,9 @@ function drawCountdown() {
   if (state === 'countdown') {
     ctx.font = 'bold 20px system-ui, sans-serif';
     ctx.lineWidth = 4;
-    ctx.strokeText(`Level ${level}`, 0, -62);
+    ctx.strokeText(countdownLabel(), 0, -62);
     ctx.fillStyle = '#ffe36e';
-    ctx.fillText(`Level ${level}`, 0, -62);
+    ctx.fillText(countdownLabel(), 0, -62);
   }
   ctx.restore();
 }
@@ -365,6 +373,8 @@ function overlay(title, ...lines) {
 const touchUI = () => document.body.classList.contains('touch');
 
 function nextLevelHint() {
+  const next = bossFor(level + 1);
+  if (next) return `👑 Next: BOSS LEVEL — ${BOSS_NAMES[next]}!`;
   if (level + 1 === BIKE_LEVEL) return 'Next: fast motorbikes, and buses that stop!';
   if (level + 1 === RAIL_LEVEL) return 'Next: a railway crossing — mind the lights!';
   if (level + 1 === EMERGENCY_LEVEL) return 'Next: listen for sirens — emergency vehicles!';
@@ -379,6 +389,7 @@ function draw() {
   ctx.save();
   ctx.translate(sx, sy);
   drawScene();
+  drawBossRoad(now);
   drawRailTracks(now);
   drawBusStop();
   drawReversibleLanes(now);
@@ -408,7 +419,8 @@ function draw() {
     overlay('Paused', 'Press P to continue');
   } else if (state === 'levelup') {
     overlay(`Level ${level} complete!`,
-      `+${levelBonus.levelPoints} level  ·  +${levelBonus.timePoints} time bonus`, nextLevelHint(),
+      `+${levelBonus.levelPoints} level  ·  +${levelBonus.timePoints} time` +
+        (levelBonus.bossPoints ? `  ·  👑 +${levelBonus.bossPoints} boss` : ' bonus'), nextLevelHint(),
       ...(weatherHint(level + 1) ? [weatherHint(level + 1)] : []));
   } else if (state === 'gameover') {
     const unlockedLine = [

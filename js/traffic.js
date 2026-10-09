@@ -1,6 +1,6 @@
 // ---------- Lanes & vehicles ----------
 function pickGap() {
-  const base = Math.max(120, 250 - level * 15);
+  const base = Math.max(120, 250 - level * 15) * bossGapMul();
   return rand(base, base * 2.2);
 }
 
@@ -17,6 +17,7 @@ const VEHICLES = {
   truck:     () => ({ w: rand(95, 125), h: 34, speed: 0.8 }),
   bike:      () => ({ w: 30, h: 14, speed: 1.6 }),
   bus:       () => ({ w: 120, h: 34, speed: 0.85 }),
+  float:     () => ({ w: rand(70, 110), h: 36, speed: 1 }),   // parade boss
   emergency: () => ({ w: 74, h: 30, speed: 2.2 }),
 };
 
@@ -45,9 +46,10 @@ function buildLanes() {
   seedRandomness();                // the daily challenge makes every level's traffic the same for everyone
   weather = weatherFor(level);
   setupWeatherScene();
+  boss = bossFor(level);
   lanes = [];
   emergencyTimer = rand(EMERGENCY_MIN, EMERGENCY_MAX) / 2;
-  const speedMul = 1 + 0.18 * (level - 1);
+  const speedMul = (1 + 0.18 * (level - 1)) * bossSpeedMul();
   for (let i = 0; i < LANES_PER_SIDE * 2; i++) {
     const top = i < LANES_PER_SIDE;
     const y = top
@@ -59,15 +61,20 @@ function buildLanes() {
   }
   // A few random lanes periodically reverse direction; more of them on higher levels.
   // Railway lanes (from RAIL_LEVEL) are picked first, so a lane is never both.
-  const reversibleCount = Math.min(1 + Math.floor((level - 1) / 2), 4);
-  const railCount = railLaneCount();
-  const order = shuffled(lanes);
-  order.slice(0, railCount).forEach(makeRailLane);
-  for (const lane of order.slice(railCount, railCount + reversibleCount)) {
-    lane.reversible = true;
-    lane.switchTimer = rand(REVERSE_MIN, REVERSE_MAX);
+  // Boss levels skip all of that: the boss is the star.
+  if (boss) {
+    setupBoss();
+  } else {
+    const reversibleCount = Math.min(1 + Math.floor((level - 1) / 2), 4);
+    const railCount = railLaneCount();
+    const order = shuffled(lanes);
+    order.slice(0, railCount).forEach(makeRailLane);
+    for (const lane of order.slice(railCount, railCount + reversibleCount)) {
+      lane.reversible = true;
+      lane.switchTimer = rand(REVERSE_MIN, REVERSE_MAX);
+    }
+    setupBusStop();                // a bus stop on even levels
   }
-  setupBusStop();                  // a bus stop on even levels
   // Pre-simulate so the road is already full of traffic (lane by lane, so no lane changes).
   presimulating = true;
   for (const lane of lanes) for (let t = 0; t < 30; t += 0.05) updateLane(lane, 0.05);
@@ -78,6 +85,7 @@ function buildLanes() {
 function moveVehicles(lane, dt) {
   for (let i = 0; i < lane.cars.length; i++) {
     const c = lane.cars[i], ahead = lane.cars[i - 1];   // cars[] is ordered front to back: index 0 is in front
+    if (c.kind === 'roller') { updateRoller(c, lane, dt); continue; }   // roadworks boss
     animateLaneChange(c, dt);
     const gapTo = () => (ahead.x - c.x) * lane.dir - (ahead.w + c.w) / 2;
     let target = c.speed;
@@ -111,6 +119,7 @@ function moveVehicles(lane, dt) {
 function updateLane(lane, dt) {
   moveVehicles(lane, dt);
   if (lane.rail) { updateRail(lane, dt); return; }
+  if (lane.closed) return;         // roadworks: no traffic in a closed lane
   if (!presimulating) updateLaneChanges(lane, dt);
 
   // Reversible lanes: stop letting cars in, wait until the lane is empty, then flip direction.
@@ -137,6 +146,15 @@ function updateLane(lane, dt) {
   const last = lane.cars[lane.cars.length - 1];
   const room = !last ? Infinity
     : lane.dir > 0 ? last.x - last.w / 2 : W - (last.x + last.w / 2);
+
+  // Parade: floats nose to tail, with a walkable gap every few floats.
+  if (lane.parade) {
+    if (room >= lane.nextGap) {
+      makeFloat(spawnVehicle(lane, 'float'));
+      lane.nextGap = nextParadeGap(lane);
+    }
+    return;
+  }
 
   // An announced emergency vehicle holds back normal traffic, then enters once there is room.
   if (lane.emergency) {
@@ -168,7 +186,7 @@ function updateTraffic(dt) {
 
 function dispatchEmergency() {
   emergencyTimer = rand(EMERGENCY_MIN, EMERGENCY_MAX);
-  const candidates = lanes.filter(l => !l.reversible && !l.emergency && !l.rail);
+  const candidates = lanes.filter(l => !l.reversible && !l.emergency && !l.rail && !specialLane(l));
   if (!candidates.length) return;
   const lane = pickFrom(candidates);
   lane.emergency = { t: EMERGENCY_WARN };

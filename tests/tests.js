@@ -70,7 +70,7 @@
     banner = null;
     particles = [];
     popups = [];
-    achievements = { unlocked: {}, bonusKinds: [] };
+    achievements = { unlocked: {}, bonusKinds: [], bosses: [] };
     toastQueue = [];
     settings = { ...DEFAULT_SETTINGS };      // the player's own settings must not affect results
     if (menuOpen()) closeMenu(false);
@@ -693,6 +693,119 @@
       for (const lvl of [2, 6]) {
         startPlaying({ lvl });
         run(30, onSidewalk);
+        draw();
+      }
+    });
+  });
+
+  // ================================================================
+  describe('Boss levels', () => {
+    test('every 5th level is a boss: parade, highway, roadworks, then again', () => {
+      eq([1, 2, 3, 4, 5, 6, 10, 15, 20, 25, 30].map(l => bossFor(l) || '-').join(' '),
+         '- - - - parade - highway roadworks parade highway roadworks');
+    });
+
+    test('boss levels have no railway, reversible lanes or bus stop', () => {
+      for (const lvl of [5, 10, 15, 20]) {
+        level = lvl; buildLanes();
+        assert(!lanes.some(l => l.rail || l.reversible || l.busStop), `level ${lvl}`);
+      }
+    });
+
+    for (const lvl of [5, 10, 15]) {
+      test(`level ${lvl} (${bossFor(lvl)}): 60 s of traffic keeps lanes ordered with no overlaps`, () => {
+        startPlaying({ lvl });
+        run(60, i => { onSidewalk(); if (i % 12 === 0) checkTrafficInvariants(); });
+      });
+    }
+
+    test('parade: only floats in the parade lanes, slow, with walkable gaps', () => {
+      startPlaying({ lvl: 5 });
+      const parade = lanes.filter(l => l.parade);
+      eq(parade.length, 2, 'two parade lanes');
+      let gapsSeen = 0;
+      run(60, i => {
+        onSidewalk();
+        if (i % 30) return;
+        for (const l of parade) {
+          for (const c of l.cars) {
+            eq(c.kind, 'float', 'only floats');
+            assert(c.v <= PARADE_SPEED + 1, `float speed ${c.v.toFixed(0)}`);
+          }
+          for (let j = 1; j < l.cars.length; j++) {
+            const a = l.cars[j - 1], c = l.cars[j];
+            const gap = (a.x - c.x) * l.dir - (a.w + c.w) / 2;
+            if (gap >= PARADE_GAP_MIN - 1 && c.x > 0 && a.x < W) gapsSeen++;
+          }
+        }
+      });
+      assert(gapsSeen > 10, `walkable gaps seen on screen: ${gapsSeen}`);
+    });
+
+    test('highway: traffic is much faster than on the level before', () => {
+      const avgSpeed = lvl => {
+        startPlaying({ lvl });
+        let sum = 0, n = 0;
+        run(20, i => { onSidewalk(); if (i % 60 === 0) for (const l of lanes) for (const c of l.cars) if (!l.rail) { sum += c.speed; n++; } });
+        return sum / n;
+      };
+      const before = avgSpeed(9), highway = avgSpeed(10);
+      assert(highway > before * 1.3, `highway ${highway.toFixed(0)} vs ${before.toFixed(0)} px/s`);
+    });
+
+    test('roadworks: closed lanes have only the steamroller, which rolls back and forth', () => {
+      startPlaying({ lvl: 15 });
+      const closed = lanes.filter(l => l.closed);
+      eq(closed.length, 4, 'four closed lanes');
+      const roller = closed.flatMap(l => l.cars)[0];
+      eq(roller && roller.kind, 'roller');
+      let minX = Infinity, maxX = -Infinity;
+      run(30, () => {
+        onSidewalk();
+        for (const l of closed) for (const c of l.cars) eq(c.kind, 'roller', 'nothing else in a closed lane');
+        minX = Math.min(minX, roller.x); maxX = Math.max(maxX, roller.x);
+      });
+      assert(minX >= 30 && maxX <= W - 30, 'stays on screen');
+      assert(maxX - minX > 300, `rolls across (${minX.toFixed(0)}–${maxX.toFixed(0)})`);
+    });
+
+    test('roadworks: rubble slows you down, and the steamroller hits', () => {
+      startPlaying({ lvl: 15 });
+      const L = lanes.find(l => l.closed && !l.cars.length);
+      player.x = W / 2; player.y = L.y + 20;
+      hold('up');
+      run(0.3, () => { timeLeft = TIME_LIMIT; });
+      near(L.y + 20 - player.y, PLAYER_SPEED * RUBBLE_SPEED * 0.3, 2, 'slow in the rubble');
+      hold('up', false);
+      const R = lanes.find(l => l.cars.some(c => c.kind === 'roller'));
+      const roller = R.cars[0];
+      player.y = R.y; player.x = roller.x + R.dir * 60;
+      run(3, () => { timeLeft = TIME_LIMIT; return state === 'playing'; });
+      eq(state, 'hit', 'run over by the steamroller');
+    });
+
+    test('a boss level pays double level points plus the boss bonus, and earns achievements', () => {
+      const cross = lvl => {
+        startPlaying({ lvl }); quietRoad();
+        hold('up');
+        run(10, () => state === 'playing');
+        hold('up', false);
+      };
+      cross(5);
+      eq(levelBonus.levelPoints, LEVEL_POINTS * 5 * 2, 'double level points');
+      eq(levelBonus.bossPoints, BOSS_BONUS, 'boss bonus');
+      assert(hasAchievement('boss') && !hasAchievement('tour'), 'boss buster');
+      cross(10); cross(15);
+      assert(hasAchievement('tour'), 'grand tour');
+    });
+
+    test('boss levels draw without errors, day and night', () => {
+      for (const lvl of [5, 10, 15, 20, 25, 30]) {   // covers each boss in several weathers
+        startPlaying({ lvl });
+        run(5, onSidewalk);
+        newGame(); level = lvl; buildLanes(); startCountdown(); draw();   // the countdown label
+        startPlaying({ lvl });
+        run(2, onSidewalk);
         draw();
       }
     });

@@ -23,7 +23,7 @@ function laneChangeTargets(lane) {
   const half = lane.index < LANES_PER_SIDE ? 0 : 1;
   return [lanes[lane.index - 1], lanes[lane.index + 1]].filter(t =>
     t && (t.index < LANES_PER_SIDE ? 0 : 1) === half && t.dir === lane.dir &&
-    !t.rail && !t.draining && !t.emergency);
+    !t.rail && !t.draining && !t.emergency && !specialLane(t));
 }
 
 // Is there a safe gap in `target` for vehicle c, including room for faster traffic behind?
@@ -61,7 +61,7 @@ function updateLaneChanges(lane, dt) {
     const i = lane.cars.indexOf(c), ahead = lane.cars[i - 1];
     const stuck = ahead && c.v < c.speed - 15 &&
       (ahead.x - c.x) * lane.dir - (ahead.w + c.w) / 2 < FOLLOW_DIST * 1.5;
-    const chance = (stuck ? 0.9 : Math.min(0.15 + 0.05 * level, 0.45)) * style.eagerness;
+    const chance = (stuck ? 0.9 : Math.min(0.15 + 0.05 * level, 0.45)) * style.eagerness * bossLaneChangeMul();
     if (gameRandom() > chance) continue;
 
     const options = laneChangeTargets(lane).filter(t => hasRoom(t, c));

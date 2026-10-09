@@ -27,6 +27,13 @@ const LITE_FPS = 42;                      // below this for a few seconds, switc
 const BUS_MIN = 10, BUS_MAX = 16;         // seconds between buses
 const BUS_DWELL = 4;                      // seconds a bus waits at its stop
 const STOPPED_V = 8;                      // vehicles slower than this (px/s) block the player instead of hurting
+const BOSS_EVERY = 5;                     // every 5th level is a boss level (see boss.js)
+const BOSS_BONUS = 500;                   // extra points for completing one (level points also double)
+const HIGHWAY_SPEED = 1.5;                // highway boss: traffic speed multiplier
+const PARADE_SPEED = 55;                  // parade boss: float speed (px/s)
+const PARADE_GAP_MIN = 110, PARADE_GAP_MAX = 150;   // parade boss: the walkable gaps in the convoy (px)
+const ROLLER_SPEED = 40;                  // roadworks boss: steamroller speed (px/s)
+const RUBBLE_SPEED = 0.55;                // roadworks boss: walking speed in a closed lane
 const TIME_LIMIT = 30;                    // seconds per attempt; running out costs a life
 const PROGRESS_POINTS = 10;               // per lane crossed for the first time in a level
 const LEVEL_POINTS = 100;                 // × level, for reaching the finish

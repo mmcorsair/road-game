@@ -70,7 +70,7 @@ function resetProgress() {
   }
   hiScore = 0;
   skinId = 'classic';
-  achievements = { unlocked: {}, bonusKinds: [] };
+  achievements = { unlocked: {}, bonusKinds: [], bosses: [] };
   seenTips = new Set();
   dailyStats = null;
   resetArmed = 0;

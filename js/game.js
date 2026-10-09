@@ -85,6 +85,7 @@ function update(dt) {
     if (state !== 'hit') {                   // traffic is frozen during 'hit'
       emitExhaust(dt);
       emitWeatherEffects(dt);
+      emitParadeConfetti(dt);
     }
   }
 
@@ -113,7 +114,7 @@ function update(dt) {
       const dx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
       const dy = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
       if (dx || dy) {
-        const speed = PLAYER_SPEED * (bootsTimer > 0 ? BOOTS_SPEED : 1);
+        const speed = PLAYER_SPEED * (bootsTimer > 0 ? BOOTS_SPEED : 1) * (inRubble() ? RUBBLE_SPEED : 1);
         const dist = speed * dt / Math.hypot(dx, dy);          // same speed diagonally
         // Stopped vehicles block the way (each axis separately, so you can slide along them).
         const nx = Math.min(W - PLAYER_SIZE / 2, Math.max(PLAYER_SIZE / 2, player.x + dx * dist));
@@ -151,10 +152,11 @@ function update(dt) {
       } else if (timeLeft <= 0) {
         loseLife('time');
       } else if (player.y + PLAYER_SIZE / 2 < FINISH_H) {
-        const levelPoints = LEVEL_POINTS * level;
+        const levelPoints = LEVEL_POINTS * level * (boss ? 2 : 1);   // boss levels: double, plus a bonus
+        const bossPoints = boss ? BOSS_BONUS : 0;
         const timePoints = Math.ceil(timeLeft) * TIME_POINTS;
-        levelBonus = { levelPoints, timePoints };
-        addScore(levelPoints + timePoints, player.x, player.y);
+        levelBonus = { levelPoints, timePoints, bossPoints };
+        addScore(levelPoints + timePoints + bossPoints, player.x, player.y);
         state = 'levelup';
         stateTimer = LEVELUP_TIME;
         silenceSiren();
@@ -213,7 +215,7 @@ function update(dt) {
 }
 
 function updateHud() {
-  document.getElementById('level').textContent = `${mode === 'daily' ? '📅 ' : ''}Level ${level}${weatherIcons()}`;
+  document.getElementById('level').textContent = `${mode === 'daily' ? '📅 ' : ''}Level ${level}${boss ? ' 👑' : ''}${weatherIcons()}`;
   document.getElementById('score').textContent = `Score ${score}`;
   document.getElementById('lives').textContent = '❤️'.repeat(Math.max(0, lives)) || '💀';
   document.getElementById('hiscore').textContent = `Hi ${Math.max(hiScore, score)}`;

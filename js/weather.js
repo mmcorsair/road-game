@@ -235,6 +235,8 @@ function drawNight(now) {
     }
     for (const c of lane.cars) {
       const y = vehicleY(c, lane);
+      if (c.kind === 'float') { lightPool(nctx, c.x, y, 60, 0.75); continue; }   // floats are lit up
+      if (c.kind === 'roller') { lightPool(nctx, c.x, y, 45, 0.6); continue; }  // work lights
       beam(nctx, c, y, lane.dir);
       lightPool(nctx, c.x, y, Math.min(c.w / 2 + 10, 60), 0.3);    // faintly lit body
       if (c.kind === 'emergency') lightPool(nctx, c.x, y, 75, 0.6);
@@ -243,7 +245,9 @@ function drawNight(now) {
   // A faint warm colour inside the beams, painted into the same low-resolution layer (much cheaper
   // than a separate full-screen blend on the main canvas).
   nctx.globalCompositeOperation = 'source-over';
-  for (const lane of lanes) for (const c of lane.cars) beam(nctx, c, vehicleY(c, lane), lane.dir, warmBeamSprite, 0.16);
+  for (const lane of lanes) for (const c of lane.cars) {
+    if (c.kind !== 'float' && c.kind !== 'roller') beam(nctx, c, vehicleY(c, lane), lane.dir, warmBeamSprite, 0.16);
+  }
 
   ctx.drawImage(nightCanvas, 0, 0, W, H);                // scaled up; smoothing keeps it soft
   drawNightLights(now);
@@ -258,6 +262,7 @@ function drawNightLights(now) {
   }
   for (const lane of lanes) {
     for (const c of lane.cars) {
+      if (c.kind === 'float' || c.kind === 'roller') continue;   // no head/tail lights
       const y = vehicleY(c, lane);
       ctx.save();
       ctx.translate(c.x, y);

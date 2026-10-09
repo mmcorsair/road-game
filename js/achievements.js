@@ -19,6 +19,8 @@ const ACHIEVEMENTS = [
   { id: 'score10k', icon: '🏆', name: 'Legend of the road',  desc: 'Score 10,000 points in one game.' },
   { id: 'daily',    icon: '📅', name: 'Daily driver',        desc: 'Finish a daily challenge.' },
   { id: 'style',    icon: '👕', name: 'New look',            desc: 'Wear a skin other than Classic.' },
+  { id: 'boss',     icon: '👑', name: 'Boss buster',         desc: 'Complete a boss level.' },
+  { id: 'tour',     icon: '🗺', name: 'Grand tour',          desc: 'Complete all three kinds of boss level.' },
 ];
 const ACHIEVEMENT_BY_ID = Object.fromEntries(ACHIEVEMENTS.map(a => [a.id, a]));
 const SCORE_ACHIEVEMENTS = [[1000, 'score1k'], [5000, 'score5k'], [10000, 'score10k']];
@@ -27,9 +29,9 @@ const SCORE_ACHIEVEMENTS = [[1000, 'score1k'], [5000, 'score5k'], [10000, 'score
 let achievements = (() => {
   try {
     const s = JSON.parse(localStorage.getItem('roadCrossingAchievements'));
-    if (s && s.unlocked) return { unlocked: s.unlocked, bonusKinds: s.bonusKinds || [] };
+    if (s && s.unlocked) return { unlocked: s.unlocked, bonusKinds: s.bonusKinds || [], bosses: s.bosses || [] };
   } catch {}
-  return { unlocked: {}, bonusKinds: [] };
+  return { unlocked: {}, bonusKinds: [], bosses: [] };
 })();
 let gameAch = { coins: 0, livesLost: 0, earned: [] };          // this game
 let levelAch = { livesLost: 0, still: 0, onTracks: false };    // this level
@@ -100,6 +102,15 @@ function achOnLevelComplete() {
   if (level + 1 >= 6 && gameAch.livesLost === 0) unlockAchievement('flawless');
   if (level + 1 >= 5) unlockAchievement('level5');
   if (level + 1 >= 10) unlockAchievement('level10');
+  if (boss) {
+    unlockAchievement('boss');
+    achievements.bosses ??= [];
+    if (!achievements.bosses.includes(boss)) {
+      achievements.bosses.push(boss);
+      saveAchievements();
+    }
+    if (BOSSES.every(b => achievements.bosses.includes(b))) unlockAchievement('tour');
+  }
 }
 
 // Every playing step: time spent standing still, and crossing tracks while the lights flash.

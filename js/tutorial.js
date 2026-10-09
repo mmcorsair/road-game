@@ -9,6 +9,9 @@ const TIPS = {
   clock:    { icon: '⏱', text: 'Beat the clock: every second left at the finish is bonus points.' },
   median:   { icon: '🌿', text: 'The grass strip in the middle is safe. Catch your breath here.' },
   pickup:   { icon: '🪙', text: 'Grab bonuses: 🪙 points · ⏱ time · 🛡 shield · 🐢 slow traffic · ❤️ life · 👟 speed · 🧲 coin magnet · 👻 ghost.' },
+  parade:   { icon: '🎉', text: 'BOSS: the Parade! Floats fill the lanes by the median — slip through a gap, rest on the grass, then the next.' },
+  highway:  { icon: '🛣', text: 'BOSS: the Highway! Everything is fast and changes lanes a lot. Wait for a really big gap.' },
+  roadworks: { icon: '🚧', text: 'BOSS: Roadworks! Closed lanes are free of traffic, but rubble slows you — and watch the steamroller.' },
   rain:     { icon: '🌧', text: 'Rain: wet brakes slip, so cars slide when they stop. Give them extra room.' },
   night:    { icon: '🌙', text: 'Night: watch for headlights. Street lamps light the safe spots.' },
   bus:      { icon: '🚌', text: 'A bus stops to let passengers off. Cars swerve around it — watch the next lane!' },
@@ -86,6 +89,7 @@ function updateTips(dt) {
     activeTip.t = Math.max(activeTip.t, 1);                  // stays until the player has walked a bit
     if (Math.hypot(player.x - activeTip.from.x, player.y - activeTip.from.y) > 40) dismissTip();
   }
+  if (boss) showTip(boss);
   if (weather.rain) showTip('rain');
   if (weather.night) showTip('night');
   if (state !== 'playing') return;
