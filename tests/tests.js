@@ -37,7 +37,8 @@
   // false, so nothing spawns — an empty lane has Infinity room, which even a huge gap wouldn't stop.)
   function quietRoad() {
     for (const l of lanes) {
-      Object.assign(l, { cars: [], nextGap: NaN, reversible: false, draining: false, emergency: null, rail: null });
+      Object.assign(l, { cars: [], nextGap: NaN, reversible: false, draining: false, emergency: null, rail: null,
+                         busStop: null });
     }
     pickups = [];
     pickupTimer = 1e9;
@@ -361,7 +362,7 @@
     test('a vehicle changing lanes hits the player where it actually is', () => {
       startPlaying(); quietRoad();
       const A = lanes[6], B = lanes[7];
-      const car = plainCar(W / 2);
+      const car = plainCar(W / 2, { speed: 20, v: 20 });   // moving (slowly): stopped vehicles only block
       B.cars.push(car);
       moveToLane(car, B, A);                    // starts at B's height, gliding up into A
       player.x = W / 2; player.y = A.y;
@@ -460,7 +461,7 @@
       player.shield = true;
       const L = lanes[7];
       player.x = W / 2; player.y = L.y;
-      L.cars = [plainCar(W / 2)];
+      L.cars = [plainCar(W / 2 - L.dir * 10, { speed: 20, v: 20 })];   // creeping into the player
       run(DT);
       eq(state, 'playing', 'survived');
       eq(player.shield, false, 'shield used up');
@@ -584,6 +585,57 @@
       startDailyFromUI();
       eq(mode, 'normal');
       eq(state, 'playing');
+    });
+  });
+
+  // ================================================================
+  describe('Bus', () => {
+    test('bus stops on even levels from 2', () => {
+      for (const lvl of [1, 2, 3, 4, 5, 6]) {
+        level = lvl; buildLanes();
+        eq(lanes.some(l => l.busStop), lvl % 2 === 0, `bus stop on level ${lvl}`);
+      }
+    });
+
+    test('a bus stops at its stop, lets passengers off, then drives on', () => {
+      startPlaying({ lvl: 2 });
+      const L = lanes.find(l => l.busStop);
+      let dwellStart = null, left = false, t = 0, walkers = 0, wasDwelling = true;
+      run(60, () => {
+        onSidewalk(); t += DT;
+        const bus = L.cars.find(c => c.kind === 'bus');
+        const dwelling = !!(bus && bus.dwell);
+        const freshStop = dwelling && !wasDwelling;   // a stop that starts during the test
+        wasDwelling = dwelling;
+        if (freshStop && dwellStart === null) {
+          dwellStart = t;
+          near(bus.x, L.busStop.x, 4, 'stopped at the stop');
+        }
+        walkers = Math.max(walkers, particles.filter(p => p.kind === 'walker').length);
+        if (dwellStart !== null && bus && !bus.dwell && bus.stopAt == null) { left = true; return false; }
+      });
+      assert(dwellStart !== null, 'a bus stopped');
+      assert(walkers >= 2, 'passengers got off');
+      assert(left, 'and drove on');
+    });
+
+    test('a stopped bus blocks the player but does not hurt', () => {
+      startPlaying({ lvl: 2 }); quietRoad();
+      const L = lanes[7];
+      L.cars = [{ kind: 'bus', w: 120, h: 34, speed: 0, v: 0, x: W / 2, color: '#f39c12' }];
+      player.x = W / 2; player.y = L.y + 40;
+      hold('up');
+      run(1, () => { timeLeft = TIME_LIMIT; });
+      eq(state, 'playing', 'not hit');
+      assert(player.y > L.y + 17, `stayed outside the bus (y ${player.y.toFixed(0)})`);
+    });
+
+    test('buses draw without errors, day and night', () => {
+      for (const lvl of [2, 6]) {
+        startPlaying({ lvl });
+        run(30, onSidewalk);
+        draw();
+      }
     });
   });
 
@@ -738,7 +790,7 @@
       startPlaying(); quietRoad();
       player.shield = true;
       player.y = lanes[7].y;
-      lanes[7].cars = [plainCar(player.x)];
+      lanes[7].cars = [plainCar(player.x, { speed: 20, v: 20 })];
       run(DT);
       assert(hasAchievement('shield'));
     });

@@ -16,6 +16,7 @@ const VEHICLES = {
   car:       () => ({ w: rand(54, 70), h: 28, speed: rand(0.85, 1.15) }),
   truck:     () => ({ w: rand(95, 125), h: 34, speed: 0.8 }),
   bike:      () => ({ w: 30, h: 14, speed: 1.6 }),
+  bus:       () => ({ w: 120, h: 34, speed: 0.85 }),
   emergency: () => ({ w: 74, h: 30, speed: 2.2 }),
 };
 
@@ -31,7 +32,9 @@ function spawnVehicle(lane, kind) {
   const last = lane.cars[lane.cars.length - 1];
   if (last) {
     const gap = (last.x - c.x) * lane.dir - (last.w + c.w) / 2;
-    c.v = Math.min(c.v, last.v + Math.sqrt(2 * brakeDecel() * Math.max(0, gap - 10)));
+    // If it's braking (e.g. into a queue behind a stopped bus), assume it's about to stand still.
+    const aheadV = last.braking || last.v < STOPPED_V ? 0 : last.v;
+    c.v = Math.min(c.v, Math.sqrt(aheadV * aheadV + 2 * brakeDecel() * Math.max(0, gap - 10)));
   }
   lane.cars.push(c);
   return c;
@@ -64,6 +67,7 @@ function buildLanes() {
     lane.reversible = true;
     lane.switchTimer = rand(REVERSE_MIN, REVERSE_MAX);
   }
+  setupBusStop();                  // a bus stop on even levels
   // Pre-simulate so the road is already full of traffic (lane by lane, so no lane changes).
   presimulating = true;
   for (const lane of lanes) for (let t = 0; t < 30; t += 0.05) updateLane(lane, 0.05);
@@ -84,14 +88,18 @@ function moveVehicles(lane, dt) {
       // Never faster than the speed you could still stop from — using the grip drivers *expect*.
       // On a wet road car and truck drivers overestimate it (RAIN_GRIP_GUESS > 1), so they brake too
       // late and slide. Fast motorbikes and ambulances, which close in much quicker, ride carefully.
-      const careful = c.kind === 'bike' || c.kind === 'emergency';
+      // Brake lights ahead (e.g. a queue forming behind a stopped bus) make every driver careful too.
+      const careful = c.kind === 'bike' || c.kind === 'emergency' || ahead.braking || ahead.v < STOPPED_V;
       const grip = weather.rain ? RAIN_BRAKE * (careful ? 1 : RAIN_GRIP_GUESS) : BRAKE;
-      target = Math.min(target, ahead.v + Math.sqrt(2 * grip * Math.max(0, gap - 4)));
+      // (√(v_ahead² + 2·grip·gap): you can still stop even if the vehicle ahead brakes as hard as it can.)
+      target = Math.min(target, Math.sqrt(ahead.v * ahead.v + 2 * grip * Math.max(0, gap - 4)));
     }
+    target = Math.min(target, stopCap(c, lane));       // a bus pulling in at its stop
     c.braking = target < c.v - 5;
     updateSkid(c, target, dt);                           // wet road: braking harder than the tyres allow
     c.v = target > c.v ? Math.min(target, c.v + ACCEL * dt) : Math.max(target, c.v - brakeDecel() * dt);
     c.x += lane.dir * c.v * dt;
+    updateBus(c, lane, dt);
     if (ahead && gapTo() < 2) {                          // never drive through the vehicle ahead
       c.x = ahead.x - lane.dir * ((ahead.w + c.w) / 2 + 2);
       c.v = Math.min(c.v, ahead.v);
@@ -141,10 +149,21 @@ function updateLane(lane, dt) {
     return;
   }
 
+  const busReady = busDue(lane, dt);
   if (room >= lane.nextGap) {
-    spawnVehicle(lane, pickKind());
+    const c = spawnVehicle(lane, busReady ? 'bus' : pickKind());
+    if (busReady) {
+      lane.busStop.due = false;
+      c.stopAt = lane.busStop.x;
+      c.color = pickFrom(['#f39c12', '#2e86c1', '#c0392b']);
+    }
     lane.nextGap = pickGap();
   }
+}
+
+// Advances all traffic.
+function updateTraffic(dt) {
+  for (const lane of lanes) updateLane(lane, dt);
 }
 
 function dispatchEmergency() {

@@ -148,7 +148,7 @@ const LAMPS = [];
 for (const x of [60, 240, 420]) {
   LAMPS.push({ x, y: MEDIAN_Y + MEDIAN_H / 2 }, { x, y: H - START_H + 14 }, { x, y: FINISH_H - 18 });
 }
-const BEAM_LENGTH = { car: 150, bike: 120, truck: 170, emergency: 170, train: 230 };
+const BEAM_LENGTH = { car: 150, bike: 120, truck: 170, bus: 160, emergency: 170, train: 230 };
 
 // Light shapes are drawn once into small sprites and stamped each frame (creating dozens of
 // gradients per frame was the main cost of night levels). Black = light: with 'destination-out'
@@ -284,6 +284,7 @@ function drawNightLights(now) {
           glow(w / 2 - 31, h / 4, 5, red ? '#102060' : '#3a7bff');
         }
         drawTurnSignals(c, now);
+        drawBusHazards(c, now);
       }
       ctx.restore();
     }

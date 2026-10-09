@@ -11,6 +11,7 @@ const TIPS = {
   pickup:   { icon: '🪙', text: 'Grab bonuses: 🪙 points · ⏱ time · 🛡 shield · 🐢 slow traffic · ❤️ life.' },
   rain:     { icon: '🌧', text: 'Rain: wet brakes slip, so cars slide when they stop. Give them extra room.' },
   night:    { icon: '🌙', text: 'Night: watch for headlights. Street lamps light the safe spots.' },
+  bus:      { icon: '🚌', text: 'A bus stops to let passengers off. Cars swerve around it — watch the next lane!' },
   signal:   { icon: '🟧', text: 'Blinking orange lights: that vehicle is about to change lanes.', hazard: true },
   reversal: { icon: '⇄', text: 'Blinking arrows: this lane is about to reverse direction.', hazard: true },
   siren:    { icon: '🚑', text: 'Siren and flashing lights: an ambulance is coming fast in that lane.', hazard: true },
@@ -95,6 +96,8 @@ function updateTips(dt) {
   if (p) showTip('pickup', () => ({ x: p.x, y: p.y }));
 
   for (const lane of lanes) {
+    const bus = lane.cars.find(c => c.kind === 'bus' && c.dwell);
+    if (bus) showTip('bus', () => ({ x: bus.x, y: lane.y }));
     if (lane.draining) showTip('reversal', () => ({ x: W / 2, y: lane.y }));
     if (lane.emergency) showTip('siren', () => ({ x: lane.dir > 0 ? 16 : W - 16, y: lane.y }));
     if (lane.rail && lane.rail.phase === 'warning') showTip('train', () => ({ x: W / 2, y: lane.y }));

@@ -92,11 +92,11 @@ function update(dt) {
   switch (state) {
     case 'title':
     case 'gameover':
-      lanes.forEach(l => updateLane(l, dt));
+      updateTraffic(dt);
       break;
 
     case 'countdown': {
-      lanes.forEach(l => updateLane(l, dt));
+      updateTraffic(dt);
       const before = Math.ceil(stateTimer / COUNTDOWN_STEP);
       stateTimer -= dt;
       const after = Math.ceil(stateTimer / COUNTDOWN_STEP);
@@ -115,8 +115,11 @@ function update(dt) {
       const dy = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
       if (dx || dy) {
         const dist = PLAYER_SPEED * dt / Math.hypot(dx, dy);   // same speed diagonally
-        player.x = Math.min(W - PLAYER_SIZE / 2, Math.max(PLAYER_SIZE / 2, player.x + dx * dist));
-        player.y = Math.min(H - START_H / 2, Math.max(FINISH_H / 2, player.y + dy * dist));
+        // Stopped vehicles block the way (each axis separately, so you can slide along them).
+        const nx = Math.min(W - PLAYER_SIZE / 2, Math.max(PLAYER_SIZE / 2, player.x + dx * dist));
+        const ny = Math.min(H - START_H / 2, Math.max(FINISH_H / 2, player.y + dy * dist));
+        if (!blockedAt(nx, player.y)) player.x = nx;
+        if (!blockedAt(player.x, ny)) player.y = ny;
         player.angle = Math.atan2(dx, -dy);                    // 0 = facing up, clockwise
         player.walk += dt * 12;
         const step = Math.floor(player.walk / Math.PI);   // one footstep per half walk cycle
@@ -126,7 +129,7 @@ function update(dt) {
       const turn = Math.atan2(Math.sin(player.angle - player.shownAngle), Math.cos(player.angle - player.shownAngle));
       player.shownAngle += turn * Math.min(1, dt * 14);
       const trafficDt = slowTimer > 0 ? dt * SLOW_FACTOR : dt;   // slow-traffic power-up
-      lanes.forEach(l => updateLane(l, trafficDt));
+      updateTraffic(trafficDt);
       honkAtPlayer();
       achUpdate(dt);
       if (level >= EMERGENCY_LEVEL && (emergencyTimer -= trafficDt) <= 0) dispatchEmergency();
@@ -189,7 +192,7 @@ function update(dt) {
       break;
 
     case 'levelup':
-      lanes.forEach(l => updateLane(l, dt));
+      updateTraffic(dt);
       stateTimer -= dt;
       if (stateTimer <= 0) {
         level++;

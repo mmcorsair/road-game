@@ -24,6 +24,9 @@ const TRUCK_SIGNAL = 1.6, TRUCK_CHANGE_TIME = 1.4;    // trucks signal longer an
 const BIKE_SIGNAL = 0.5, BIKE_CHANGE_TIME = 0.45;    // motorbikes barely signal and swerve quickly
 const MAX_RENDER_SCALE = 2;               // canvas pixel density cap (see render.js)
 const LITE_FPS = 42;                      // below this for a few seconds, switch to lite mode
+const BUS_MIN = 10, BUS_MAX = 16;         // seconds between buses
+const BUS_DWELL = 4;                      // seconds a bus waits at its stop
+const STOPPED_V = 8;                      // vehicles slower than this (px/s) block the player instead of hurting
 const TIME_LIMIT = 30;                    // seconds per attempt; running out costs a life
 const PROGRESS_POINTS = 10;               // per lane crossed for the first time in a level
 const LEVEL_POINTS = 100;                 // × level, for reaching the finish

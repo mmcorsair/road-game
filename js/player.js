@@ -21,14 +21,22 @@ function honkAtPlayer() {
 }
 
 // Returns the vehicle the player collided with (and its lane), or null.
-function hitsCar() {
+// Vehicle overlapping the player's box at (x, y), moving (moving = true) or stopped (false).
+function vehicleAt(x, y, moving) {
   const s = PLAYER_SIZE / 2 - 3;
   for (const lane of lanes) {
-    if (Math.abs(lane.y - player.y) > LANE_H) continue;
+    if (Math.abs(lane.y - y) > LANE_H) continue;
     for (const c of lane.cars) {
-      if (Math.abs(c.x - player.x) < c.w / 2 - 2 + s &&
-          Math.abs(vehicleY(c, lane) - player.y) < c.h / 2 - 2 + s) return { car: c, lane };
+      if ((c.v >= STOPPED_V) !== moving) continue;
+      if (Math.abs(c.x - x) < c.w / 2 - 2 + s && Math.abs(vehicleY(c, lane) - y) < c.h / 2 - 2 + s) return { car: c, lane };
     }
   }
   return null;
+}
+
+// A stopped vehicle (waiting at the lights, a bus at its stop, a queue) blocks you but can't hurt you.
+const blockedAt = (x, y) => !!vehicleAt(x, y, false);
+
+function hitsCar() {
+  return vehicleAt(player.x, player.y, true);
 }

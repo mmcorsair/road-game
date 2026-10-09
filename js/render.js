@@ -156,7 +156,9 @@ function drawCar(c, y, dir, now) {
     return;
   }
 
-  if (c.kind === 'truck') {
+  if (c.kind === 'bus') {
+    drawBus(c);
+  } else if (c.kind === 'truck') {
     ctx.fillStyle = '#d0d4d9';          // cargo box
     ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w - 30, h, 3); ctx.fill();
     ctx.fillStyle = c.color;            // cab
@@ -198,6 +200,7 @@ function drawCar(c, y, dir, now) {
   ctx.fillStyle = c.braking ? '#ff1a1a' : '#b81c1c';   // tail lights
   ctx.fillRect(-w / 2, -h / 2 + 3, c.braking ? 3 : 2, 6);
   ctx.fillRect(-w / 2, h / 2 - 9, c.braking ? 3 : 2, 6);
+  drawBusHazards(c, now);
   drawTurnSignals(c, now);
   ctx.restore();
 }
@@ -358,7 +361,7 @@ function overlay(title, ...lines) {
 const touchUI = () => document.body.classList.contains('touch');
 
 function nextLevelHint() {
-  if (level + 1 === BIKE_LEVEL) return 'Next: watch out for fast motorbikes!';
+  if (level + 1 === BIKE_LEVEL) return 'Next: fast motorbikes, and buses that stop!';
   if (level + 1 === RAIL_LEVEL) return 'Next: a railway crossing — mind the lights!';
   if (level + 1 === EMERGENCY_LEVEL) return 'Next: listen for sirens — emergency vehicles!';
   return 'Faster traffic, more reversing lanes…';
@@ -373,6 +376,7 @@ function draw() {
   ctx.translate(sx, sy);
   drawScene();
   drawRailTracks(now);
+  drawBusStop();
   drawReversibleLanes(now);
   drawWetRoad(now);                          // puddles and skid marks
   drawParticles(true);                       // exhaust, spray and splashes, beneath the vehicles

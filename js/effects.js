@@ -81,6 +81,7 @@ function emitExhaust(dt) {
 
 function updateEffects(dt) {
   for (const p of particles) {
+    if (p.delay > 0) { p.delay -= dt; continue; }      // not out yet (e.g. bus passengers taking turns)
     p.vx -= p.vx * Math.min(1, p.drag * dt);
     p.vy -= p.vy * Math.min(1, p.drag * dt);
     p.vy += p.gravity * dt;
@@ -96,10 +97,14 @@ function updateEffects(dt) {
 
 function drawParticles(under) {
   for (const p of particles) {
-    if (p.under !== under) continue;
+    if (p.under !== under || p.delay > 0) continue;
     ctx.globalAlpha = p.alpha * Math.min(1, p.life / p.max * 2);   // fade out over the second half of life
     ctx.fillStyle = p.color;
-    if (p.kind === 'ring') {
+    if (p.kind === 'walker') {                 // a little pedestrian seen from above
+      ctx.beginPath(); ctx.ellipse(p.x, p.y, p.size + 1, p.size * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#5b3a1e';
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size * 0.55, 0, Math.PI * 2); ctx.fill();
+    } else if (p.kind === 'ring') {
       ctx.strokeStyle = p.color;
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.ellipse(p.x, p.y, p.size, p.size * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
