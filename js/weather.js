@@ -46,7 +46,7 @@ let stopRainSound = null;
 
 function setupWeatherScene() {
   skidMarks = [];
-  raindrops = Array.from({ length: 140 }, () => ({ x: fxRand(0, W + 80), y: fxRand(0, H), len: fxRand(10, 18),
+  raindrops = Array.from({ length: liteMode ? 60 : 140 }, () => ({ x: fxRand(0, W + 80), y: fxRand(0, H), len: fxRand(10, 18),
                                                    speed: fxRand(650, 900) }));
   puddles = Array.from({ length: 9 }, () => ({ x: fxRand(20, W - 20), y: fxRand(FINISH_H + 10, H - START_H - 10),
                                                rx: fxRand(14, 34), ry: fxRand(5, 10), phase: fxRand(0, 6) }));
@@ -73,7 +73,7 @@ function updateWeather(dt) {
 // Spray, splashes, skid marks and squeals; called each step while traffic is moving.
 function emitWeatherEffects(dt) {
   if (!weather.rain) return;
-  if (fxRand(0, 1) < dt * 30) {                       // raindrops splashing on the road
+  if (fxRand(0, 1) < dt * (liteMode ? 10 : 30)) {                       // raindrops splashing on the road
     addParticle({ kind: 'ring', x: fxRand(0, W), y: fxRand(FINISH_H, H - START_H), life: 0.35, size: 1,
                   grow: 16, color: '#c9d6e6', alpha: 0.5, under: true });
   }
@@ -82,7 +82,7 @@ function emitWeatherEffects(dt) {
       if (c.kind === 'train' || c.x < -40 || c.x > W + 40) continue;
       const y = vehicleY(c, lane), tailX = c.x - lane.dir * c.w / 2;
       c.spray = (c.spray ?? fxRand(0, 0.1)) - dt;
-      if (c.v > 40 && c.spray <= 0) {                   // tyre spray behind moving vehicles
+      if (c.v > 40 && c.spray <= 0 && !liteMode) {      // tyre spray behind moving vehicles
         c.spray = fxRand(0.05, 0.12);
         addParticle({ kind: 'smoke', x: tailX, y: y + fxRand(-c.h / 3, c.h / 3), vx: -lane.dir * fxRand(20, 50),
                       vy: fxRand(-10, 10), life: 0.5, size: 3, grow: 16, color: '#d8e2ee', alpha: 0.13,
@@ -150,39 +150,71 @@ for (const x of [60, 240, 420]) {
 }
 const BEAM_LENGTH = { car: 150, bike: 120, truck: 170, emergency: 170, train: 230 };
 
-// Soft circle of light (cuts darkness when drawn with 'destination-out').
-function lightPool(g, x, y, r, strength = 0.9) {
-  const grad = g.createRadialGradient(x, y, 0, x, y, r);
-  grad.addColorStop(0, `rgba(0,0,0,${strength})`);
-  grad.addColorStop(1, 'rgba(0,0,0,0)');
-  g.fillStyle = grad;
-  g.fillRect(x - r, y - r, r * 2, r * 2);
+// Light shapes are drawn once into small sprites and stamped each frame (creating dozens of
+// gradients per frame was the main cost of night levels). Black = light: with 'destination-out'
+// the sprite's alpha cuts a soft hole in the darkness.
+const NIGHT_SCALE = 0.5;          // the darkness layer is drawn at half the game's resolution, then smoothed
+let poolSprite = null, beamSprite = null, warmBeamSprite = null;
+
+function makeSprite(w, h, paint) {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  paint(c.getContext('2d'));
+  return c;
 }
 
-// Headlight beam: a cone from the vehicle's front, fading with distance.
-function beam(g, c, y, dir, color = '0,0,0', strength = 0.95) {
-  const fx = c.x + dir * c.w / 2, len = BEAM_LENGTH[c.kind] || 150;
-  const grad = g.createLinearGradient(fx, y, fx + dir * len, y);
-  grad.addColorStop(0, `rgba(${color},${strength})`);
-  grad.addColorStop(1, `rgba(${color},0)`);
+// A headlight cone pointing right: narrow at x = 0, wide and faded at the far end.
+function paintBeam(g, rgb) {
+  const grad = g.createLinearGradient(0, 0, 128, 0);
+  grad.addColorStop(0, `rgba(${rgb},1)`);
+  grad.addColorStop(1, `rgba(${rgb},0)`);
   g.fillStyle = grad;
   g.beginPath();
-  g.moveTo(fx, y - c.h / 2 + 4);
-  g.lineTo(fx + dir * len, y - 38);
-  g.lineTo(fx + dir * len, y + 38);
-  g.lineTo(fx, y + c.h / 2 - 4);
+  g.moveTo(0, 24); g.lineTo(128, 0); g.lineTo(128, 64); g.lineTo(0, 40);
   g.closePath();
   g.fill();
+}
+
+function makeLightSprites() {
+  poolSprite = makeSprite(64, 64, g => {
+    const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(0,0,0,1)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 64, 64);
+  });
+  beamSprite = makeSprite(128, 64, g => paintBeam(g, '0,0,0'));
+  warmBeamSprite = makeSprite(128, 64, g => paintBeam(g, '255,220,140'));
+}
+
+// Soft circle of light of radius r.
+function lightPool(g, x, y, r, strength = 0.9) {
+  g.globalAlpha = strength;
+  g.drawImage(poolSprite, x - r, y - r, r * 2, r * 2);
+  g.globalAlpha = 1;
+}
+
+// Headlight beam from the vehicle's front, in its direction of travel.
+function beam(g, c, y, dir, sprite = beamSprite, strength = 0.95) {
+  const len = BEAM_LENGTH[c.kind] || 150;
+  g.save();
+  g.translate(c.x + dir * c.w / 2, y);
+  g.scale(dir, 1);
+  g.globalAlpha = strength;
+  g.drawImage(sprite, 0, -38, len, 76);
+  g.restore();
 }
 
 function drawNight(now) {
   if (!weather.night) return;
   if (!nightCanvas) {
     nightCanvas = document.createElement('canvas');
-    nightCanvas.width = W * dpr;
-    nightCanvas.height = H * dpr;
+    nightCanvas.width = W * NIGHT_SCALE;
+    nightCanvas.height = H * NIGHT_SCALE;
     nctx = nightCanvas.getContext('2d');
-    nctx.scale(dpr, dpr);
+    nctx.scale(NIGHT_SCALE, NIGHT_SCALE);
+    makeLightSprites();
   }
   nctx.globalCompositeOperation = 'source-over';
   nctx.clearRect(0, 0, W, H);
@@ -208,13 +240,12 @@ function drawNight(now) {
       if (c.kind === 'emergency') lightPool(nctx, c.x, y, 75, 0.6);
     }
   }
-  ctx.drawImage(nightCanvas, 0, 0, W, H);
+  // A faint warm colour inside the beams, painted into the same low-resolution layer (much cheaper
+  // than a separate full-screen blend on the main canvas).
+  nctx.globalCompositeOperation = 'source-over';
+  for (const lane of lanes) for (const c of lane.cars) beam(nctx, c, vehicleY(c, lane), lane.dir, warmBeamSprite, 0.16);
 
-  // Warm tint inside the beams, then the light sources themselves glowing on top.
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  for (const lane of lanes) for (const c of lane.cars) beam(ctx, c, vehicleY(c, lane), lane.dir, '255,220,140', 0.16);
-  ctx.restore();
+  ctx.drawImage(nightCanvas, 0, 0, W, H);                // scaled up; smoothing keeps it soft
   drawNightLights(now);
 }
 

@@ -591,7 +591,7 @@
       player.x = W - 30; player.y = H - START_H / 2;
       draw();
       const brightness = (x, y) => {
-        const [r, g, b] = ctx.getImageData(Math.round(x * dpr), Math.round(y * dpr), 1, 1).data;
+        const [r, g, b] = ctx.getImageData(Math.round(x * renderScale), Math.round(y * renderScale), 1, 1).data;
         return (r + g + b) / 3;
       };
       const inBeam = brightness(300 - 30 - 60, L.y);   // 60 px in front of the car
@@ -729,6 +729,40 @@
       eq(document.getElementById('achList').querySelectorAll('.ach.done').length, 1);
       eq(achievementCount(), `1/${ACHIEVEMENTS.length}`);
       closeSkinPicker();
+    });
+  });
+
+  // ================================================================
+  describe('Performance safeguards', () => {
+    const normalScale = () => Math.min(dpr, MAX_RENDER_SCALE);
+    const restore = () => { liteMode = false; slowTime = 0; setRenderScale(normalScale()); };
+
+    test('the canvas is never drawn at more than 2× density', () => {
+      assert(renderScale <= MAX_RENDER_SCALE, `render scale ${renderScale}`);
+      eq(canvas.width, W * renderScale);
+    });
+
+    test('a slow frame rate while playing switches to lite mode', () => {
+      try {
+        startPlaying();
+        for (let i = 0; i < 60; i++) watchFrameRate(1 / 60);          // smooth: nothing happens
+        eq(liteMode, false, 'stays normal at 60 fps');
+        for (let i = 0; i < 30 * 4; i++) watchFrameRate(1 / 30);      // 4 s at 30 fps
+        eq(liteMode, true, 'lite mode');
+        eq(renderScale, 1);
+        eq(canvas.width, W);
+        run(1); draw();                                               // still draws fine
+      } finally { restore(); }
+    });
+
+    test('pauses, menus and background tabs never trigger lite mode', () => {
+      try {
+        startPlaying();
+        for (let i = 0; i < 20; i++) watchFrameRate(2);               // a background tab: huge gaps
+        state = 'paused';
+        for (let i = 0; i < 300; i++) watchFrameRate(1 / 20);         // slow, but not playing
+        eq(liteMode, false);
+      } finally { restore(); }
     });
   });
 

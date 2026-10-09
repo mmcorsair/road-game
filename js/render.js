@@ -1,10 +1,28 @@
 // ---------- Canvas setup ----------
+// The canvas is drawn at the screen's pixel density, capped at 2× (3× phones would draw 2.25× more
+// pixels for a barely visible difference). Lite mode drops it to 1× on devices that can't keep up.
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const dpr = window.devicePixelRatio || 1;
-canvas.width = W * dpr;
-canvas.height = H * dpr;
-ctx.scale(dpr, dpr);
+let renderScale = 0;
+let liteMode = false;
+
+function setRenderScale(scale) {
+  renderScale = scale;
+  canvas.width = W * scale;
+  canvas.height = H * scale;
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+}
+setRenderScale(Math.min(dpr, MAX_RENDER_SCALE));
+
+// Switches to lite mode: 1× resolution and fewer rain particles. Called by the frame-rate watchdog.
+function enterLiteMode() {
+  if (liteMode) return;
+  liteMode = true;
+  setRenderScale(1);
+  raindrops.length = Math.min(raindrops.length, 60);
+  console.info('Road Crossing: low frame rate, switched to lite mode');
+}
 
 // ---------- Drawing ----------
 function drawScene() {

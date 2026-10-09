@@ -21,6 +21,8 @@ const TRAIN_SPEED_MIN = 420, TRAIN_SPEED_MAX = 560;   // px/s
 const LANE_CHANGE_SIGNAL = 1;             // seconds a vehicle blinks before changing lanes
 const LANE_CHANGE_TIME = 0.8;             // seconds the move to the next lane takes
 const TRUCK_SIGNAL = 1.6, TRUCK_CHANGE_TIME = 1.4;    // trucks signal longer and move over more slowly
+const MAX_RENDER_SCALE = 2;               // canvas pixel density cap (see render.js)
+const LITE_FPS = 42;                      // below this for a few seconds, switch to lite mode
 const TIME_LIMIT = 30;                    // seconds per attempt; running out costs a life
 const PROGRESS_POINTS = 10;               // per lane crossed for the first time in a level
 const LEVEL_POINTS = 100;                 // × level, for reaching the finish
