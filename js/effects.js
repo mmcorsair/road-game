@@ -99,7 +99,11 @@ function drawParticles(under) {
     if (p.under !== under) continue;
     ctx.globalAlpha = p.alpha * Math.min(1, p.life / p.max * 2);   // fade out over the second half of life
     ctx.fillStyle = p.color;
-    if (p.kind === 'shard') {
+    if (p.kind === 'ring') {
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.ellipse(p.x, p.y, p.size, p.size * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
+    } else if (p.kind === 'shard') {
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(p.rot);

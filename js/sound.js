@@ -134,6 +134,33 @@ const sfx = {
     src.start(t);
     src.stop(t + dur + 0.35);
   },
+  squeal(pan) {                         // tyres sliding on a wet road
+    tone(1150, 0.4, { type: 'sawtooth', gain: 0.025, endFreq: 780, pan });
+    tone(1230, 0.35, { type: 'square', gain: 0.012, endFreq: 850, pan });
+  },
+  rainLoop() {                          // steady rain; returns a function that stops it
+    if (!sound.ready()) return null;
+    const ac = sound.ctx, t = ac.currentTime;
+    const src = ac.createBufferSource(), filter = ac.createBiquadFilter(), g = ac.createGain();
+    src.buffer = sound.noise;
+    src.loop = true;
+    filter.type = 'bandpass';
+    filter.frequency.value = 1400;
+    filter.Q.value = 0.5;
+    g.gain.setValueAtTime(0.001, t);
+    g.gain.exponentialRampToValueAtTime(0.08, t + 1);
+    src.connect(filter);
+    filter.connect(g);
+    sound.output(g);
+    src.start(t);
+    return () => {
+      const now = ac.currentTime;
+      g.gain.cancelScheduledValues(now);
+      g.gain.setValueAtTime(Math.max(g.gain.value, 0.001), now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+      src.stop(now + 0.55);
+    };
+  },
   count() { tone(660, 0.12, { type: 'triangle', gain: 0.18 }); },
   point() { tone(1200, 0.07, { type: 'sine', gain: 0.1 }); },
   tick()  { tone(1600, 0.04, { gain: 0.06 }); },

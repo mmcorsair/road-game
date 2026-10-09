@@ -9,6 +9,8 @@ const TIPS = {
   clock:    { icon: '⏱', text: 'Beat the clock: every second left at the finish is bonus points.' },
   median:   { icon: '🌿', text: 'The grass strip in the middle is safe. Catch your breath here.' },
   pickup:   { icon: '🪙', text: 'Grab bonuses: 🪙 points · ⏱ time · 🛡 shield · 🐢 slow traffic · ❤️ life.' },
+  rain:     { icon: '🌧', text: 'Rain: wet brakes slip, so cars slide when they stop. Give them extra room.' },
+  night:    { icon: '🌙', text: 'Night: watch for headlights. Street lamps light the safe spots.' },
   signal:   { icon: '🟧', text: 'Blinking orange lights: that vehicle is about to change lanes.', hazard: true },
   reversal: { icon: '⇄', text: 'Blinking arrows: this lane is about to reverse direction.', hazard: true },
   siren:    { icon: '🚑', text: 'Siren and flashing lights: an ambulance is coming fast in that lane.', hazard: true },
@@ -83,6 +85,8 @@ function updateTips(dt) {
     activeTip.t = Math.max(activeTip.t, 1);                  // stays until the player has walked a bit
     if (Math.hypot(player.x - activeTip.from.x, player.y - activeTip.from.y) > 40) dismissTip();
   }
+  if (weather.rain) showTip('rain');
+  if (weather.night) showTip('night');
   if (state !== 'playing') return;
 
   if (timeLeft < TIME_LIMIT - 6 && seenTips.has('move')) showTip('clock', () => ({ x: W - 30, y: H - 14 }));

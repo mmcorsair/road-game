@@ -534,6 +534,79 @@
   });
 
   // ================================================================
+  describe('Weather', () => {
+    test('weather schedule: clear, rain, night, then a repeating cycle', () => {
+      const w = lvl => { const x = weatherFor(lvl); return (x.rain ? 'R' : '') + (x.night ? 'N' : '') || '-'; };
+      eq([1, 2, 3, 4, 5, 6, 7, 8, 9].map(w).join(' '), '- R N - R N RN - R');
+    });
+
+    // A fast car approaching a stopped one; returns how far it travelled while braking, and its state.
+    function brakeTest(lvl) {
+      startPlaying({ lvl }); quietRoad();
+      const L = lanes[6];
+      const stopped = plainCar(400), fast = plainCar(400 - L.dir * 260, { speed: 220, v: 220 });
+      L.cars = [stopped, fast];
+      let maxDecel = 0, maxSkid = 0, brakingFrom = null, prevV = fast.v;
+      const gap = () => (stopped.x - fast.x) * L.dir - (stopped.w + fast.w) / 2;
+      run(3, () => {
+        onSidewalk();
+        if (gap() > 3) maxDecel = Math.max(maxDecel, (prevV - fast.v) / DT);   // brakes only, not contact
+        prevV = fast.v;
+        maxSkid = Math.max(maxSkid, fast.skid || 0);
+        if (brakingFrom === null && fast.braking) brakingFrom = fast.x;
+      });
+      return { maxDecel, maxSkid, brakingDistance: Math.abs(fast.x - brakingFrom) };
+    }
+
+    test('in the rain, brakes are weaker, vehicles slide further and skid', () => {
+      const dry = brakeTest(1), wet = brakeTest(2);
+      assert(dry.maxDecel > RAIN_BRAKE * 1.5, `dry braking ${dry.maxDecel.toFixed(0)}`);
+      assert(wet.maxDecel <= RAIN_BRAKE + 1, `wet braking ${wet.maxDecel.toFixed(0)} px/s²`);
+      assert(wet.brakingDistance > dry.brakingDistance * 1.5,
+        `slides further: ${wet.brakingDistance.toFixed(0)} vs ${dry.brakingDistance.toFixed(0)} px`);
+      eq(dry.maxSkid, 0, 'no skidding when dry');
+      assert(wet.maxSkid > 0.5, 'skids when wet');
+    });
+
+    test('skidding in the rain leaves skid marks', () => {
+      skidMarks = [];
+      brakeTest(2);
+      assert(skidMarks.length > 0, 'skid marks drawn');
+    });
+
+    for (const lvl of [5, 6, 7]) {
+      test(`level ${lvl} (${['', 'rain', 'night', 'rainy night'][2 * weatherFor(lvl).night + weatherFor(lvl).rain]}): 60 s of traffic keeps lanes ordered with no overlaps`, () => {
+        startPlaying({ lvl });
+        run(60, i => { onSidewalk(); if (i % 12 === 0) checkTrafficInvariants(); });
+      });
+    }
+
+    test('at night, headlights light the road ahead of a vehicle', () => {
+      startPlaying({ lvl: 3 }); quietRoad();
+      eq(weather.night, true);
+      const L = lanes[2];                         // drives left (dir -1)
+      L.cars = [plainCar(300, { speed: 0.001, v: 0.001 })];
+      player.x = W - 30; player.y = H - START_H / 2;
+      draw();
+      const brightness = (x, y) => {
+        const [r, g, b] = ctx.getImageData(Math.round(x * dpr), Math.round(y * dpr), 1, 1).data;
+        return (r + g + b) / 3;
+      };
+      const inBeam = brightness(300 - 30 - 60, L.y);   // 60 px in front of the car
+      const behind = brightness(300 + 30 + 80, L.y);   // 80 px behind it, unlit
+      assert(inBeam > behind + 25, `beam ${inBeam.toFixed(0)} vs dark ${behind.toFixed(0)}`);
+    });
+
+    test('rain, night and both draw without errors', () => {
+      for (const lvl of [2, 3, 7]) {
+        startPlaying({ lvl });
+        run(2, onSidewalk);
+        draw();
+      }
+    });
+  });
+
+  // ================================================================
   describe('First-time tips', () => {
     test('the move tip shows at the start and goes away once the player walks', () => {
       seenTips = new Set();

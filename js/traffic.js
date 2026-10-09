@@ -27,6 +27,12 @@ function spawnVehicle(lane, kind) {
     x: lane.dir > 0 ? -spec.w / 2 : W + spec.w / 2,
     color: pickFrom(CAR_COLORS),
   };
+  // Enter no faster than it could still stop behind the vehicle ahead (matters on wet roads).
+  const last = lane.cars[lane.cars.length - 1];
+  if (last) {
+    const gap = (last.x - c.x) * lane.dir - (last.w + c.w) / 2;
+    c.v = Math.min(c.v, last.v + Math.sqrt(2 * brakeDecel() * Math.max(0, gap - 10)));
+  }
   lane.cars.push(c);
   return c;
 }
@@ -34,6 +40,8 @@ function spawnVehicle(lane, kind) {
 function buildLanes() {
   silenceSiren();
   seedRandomness();                // the daily challenge makes every level's traffic the same for everyone
+  weather = weatherFor(level);
+  setupWeatherScene();
   lanes = [];
   emergencyTimer = rand(EMERGENCY_MIN, EMERGENCY_MAX) / 2;
   const speedMul = 1 + 0.18 * (level - 1);
@@ -71,10 +79,18 @@ function moveVehicles(lane, dt) {
     let target = c.speed;
     if (ahead) {
       const gap = gapTo();
-      if (gap < FOLLOW_DIST) target = Math.min(target, Math.max(0, ahead.v + (gap - FOLLOW_DIST) * 2));
+      const follow = followDist();
+      if (gap < follow) target = Math.min(target, Math.max(0, ahead.v + (gap - follow) * 2));
+      // Never faster than the speed you could still stop from — using the grip drivers *expect*.
+      // On a wet road car and truck drivers overestimate it (RAIN_GRIP_GUESS > 1), so they brake too
+      // late and slide. Fast motorbikes and ambulances, which close in much quicker, ride carefully.
+      const careful = c.kind === 'bike' || c.kind === 'emergency';
+      const grip = weather.rain ? RAIN_BRAKE * (careful ? 1 : RAIN_GRIP_GUESS) : BRAKE;
+      target = Math.min(target, ahead.v + Math.sqrt(2 * grip * Math.max(0, gap - 4)));
     }
     c.braking = target < c.v - 5;
-    c.v = target > c.v ? Math.min(target, c.v + ACCEL * dt) : Math.max(target, c.v - BRAKE * dt);
+    updateSkid(c, target, dt);                           // wet road: braking harder than the tyres allow
+    c.v = target > c.v ? Math.min(target, c.v + ACCEL * dt) : Math.max(target, c.v - brakeDecel() * dt);
     c.x += lane.dir * c.v * dt;
     if (ahead && gapTo() < 2) {                          // never drive through the vehicle ahead
       c.x = ahead.x - lane.dir * ((ahead.w + c.w) / 2 + 2);

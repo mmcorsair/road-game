@@ -27,8 +27,9 @@ function hasRoom(target, c) {
   for (const t of target.cars) {
     const ahead = (t.x - c.x) * target.dir > 0;
     const gap = Math.abs(t.x - c.x) - (t.w + c.w) / 2;
-    const closing = ahead ? c.v - t.v : t.v - c.v;      // how fast the gap is shrinking
-    if (gap < LANE_CHANGERS[c.kind].gap + Math.max(0, closing) * 0.8) return false;
+    const closing = Math.max(0, ahead ? c.v - t.v : t.v - c.v);   // how fast the gap is shrinking
+    const stopping = closing * closing / (2 * brakeDecel());        // room the closing vehicle needs to brake
+    if (gap < LANE_CHANGERS[c.kind].gap + closing * 0.8 + stopping) return false;
   }
   return true;
 }

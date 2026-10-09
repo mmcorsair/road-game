@@ -6,6 +6,8 @@ const PLAYER_SPEED = 150, PLAYER_SIZE = 22, START_LIVES = 3;
 const REVERSE_MIN = 6, REVERSE_MAX = 12;  // seconds between direction changes of a reversible lane
 const MIN_WARNING = 2;                    // a reversing lane blinks at least this long before flipping
 const FOLLOW_DIST = 60, ACCEL = 150, BRAKE = 400;  // car-following: keep distance, accelerate, brake (px, px/s²)
+const RAIN_BRAKE = 170, RAIN_FOLLOW_DIST = 95;   // wet road: weaker brakes (px/s²), longer following distance (px)
+const RAIN_GRIP_GUESS = 1.3;               // wet-road drivers expect this much more grip than they have
 const BIKE_LEVEL = 2;                     // motorbikes appear from this level
 const RAIL_LEVEL = 3;                     // a railway crossing replaces a lane from this level (two from +4)
 const EMERGENCY_LEVEL = 4;                // emergency vehicles appear from this level

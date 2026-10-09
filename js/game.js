@@ -78,7 +78,11 @@ function update(dt) {
     if (banner && (banner.t -= dt) <= 0) banner = null;
     updateTips(dt);
     updateEffects(dt);
-    if (state !== 'hit') emitExhaust(dt);    // traffic is frozen during 'hit'
+    updateWeather(dt);
+    if (state !== 'hit') {                   // traffic is frozen during 'hit'
+      emitExhaust(dt);
+      emitWeatherEffects(dt);
+    }
   }
 
   switch (state) {
@@ -195,7 +199,7 @@ function update(dt) {
 }
 
 function updateHud() {
-  document.getElementById('level').textContent = `${mode === 'daily' ? '📅 ' : ''}Level ${level}`;
+  document.getElementById('level').textContent = `${mode === 'daily' ? '📅 ' : ''}Level ${level}${weatherIcons()}`;
   document.getElementById('score').textContent = `Score ${score}`;
   document.getElementById('lives').textContent = '❤️'.repeat(Math.max(0, lives)) || '💀';
   document.getElementById('hiscore').textContent = `Hi ${Math.max(hiScore, score)}`;

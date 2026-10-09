@@ -60,11 +60,15 @@ function drawScene() {
 
 // Reversible lanes get an amber tint and painted arrows showing the traffic direction.
 // While a lane is about to reverse, the arrows blink amber and point the new way.
-function drawReversibleLanes(now) {
+// warningsOnly: just the blinking warning arrows (redrawn on top of the darkness at night).
+function drawReversibleLanes(now, warningsOnly = false) {
   for (const lane of lanes) {
     if (!lane.reversible) continue;
-    ctx.fillStyle = 'rgba(244,180,0,.10)';
-    ctx.fillRect(0, lane.y - LANE_H / 2, W, LANE_H);
+    if (warningsOnly && !lane.draining) continue;
+    if (!warningsOnly) {
+      ctx.fillStyle = 'rgba(244,180,0,.10)';
+      ctx.fillRect(0, lane.y - LANE_H / 2, W, LANE_H);
+    }
 
     let dir = lane.dir, color = 'rgba(255,255,255,.35)';
     if (lane.draining) {
@@ -100,7 +104,8 @@ function drawCar(c, y, dir, now) {
   const { w, h } = c;
   ctx.save();
   ctx.translate(c.x, y);
-  if (c.dyRate) ctx.rotate(dir * Math.atan2(c.dyRate, Math.max(c.v, 30)) * 0.5);   // nose into a lane change
+  const laneTilt = c.dyRate ? Math.atan2(c.dyRate, Math.max(c.v, 30)) * 0.5 : 0;   // nose into a lane change
+  if (laneTilt || c.skid) ctx.rotate(dir * (laneTilt + skidYaw(c)));                // + fishtail when skidding
   if (dir < 0) ctx.scale(-1, 1);       // after this, the vehicle's front always points to +x
 
   ctx.fillStyle = 'rgba(0,0,0,.3)';
@@ -344,14 +349,17 @@ function draw() {
   drawScene();
   drawRailTracks(now);
   drawReversibleLanes(now);
-  drawParticles(true);                       // exhaust, beneath the vehicles
+  drawWetRoad(now);                          // puddles and skid marks
+  drawParticles(true);                       // exhaust, spray and splashes, beneath the vehicles
   drawEmergencyGlow(now);
   drawPickups(now);                          // lying on the road; vehicles drive over them
   for (const lane of lanes) for (const c of lane.cars) drawCar(c, vehicleY(c, lane), lane.dir, now);
   drawEmergencyWarnings(now);
+  if (state !== 'title') drawPlayer();
+  drawNight(now);                            // darkness with headlights and lamps (night levels)
+  drawRain();
   if (state !== 'title') {
     drawPowerUpStatus();
-    drawPlayer();
     drawTimer(now);
   }
   drawPopups();
@@ -367,7 +375,8 @@ function draw() {
     overlay('Paused', 'Press P to continue');
   } else if (state === 'levelup') {
     overlay(`Level ${level} complete!`,
-      `+${levelBonus.levelPoints} level  ·  +${levelBonus.timePoints} time bonus`, nextLevelHint());
+      `+${levelBonus.levelPoints} level  ·  +${levelBonus.timePoints} time bonus`, nextLevelHint(),
+      ...(weatherHint(level + 1) ? [weatherHint(level + 1)] : []));
   } else if (state === 'gameover') {
     const unlockedLine = skinsUnlockedThisGame.length
       ? [`👕 Unlocked: ${skinsUnlockedThisGame.join(', ')} — try it on!`] : [];
