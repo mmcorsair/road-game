@@ -31,8 +31,7 @@ function startAttempt() {
   resetPlayer();
   timeLeft = TIME_LIMIT;
   lastTick = 0;
-  slowTimer = 0;
-  invulnTimer = 0;
+  clearPowerUps();
 }
 
 function addPopup(text, x, y) {
@@ -114,14 +113,19 @@ function update(dt) {
       const dx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
       const dy = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
       if (dx || dy) {
-        const dist = PLAYER_SPEED * dt / Math.hypot(dx, dy);   // same speed diagonally
+        const speed = PLAYER_SPEED * (bootsTimer > 0 ? BOOTS_SPEED : 1);
+        const dist = speed * dt / Math.hypot(dx, dy);          // same speed diagonally
         // Stopped vehicles block the way (each axis separately, so you can slide along them).
         const nx = Math.min(W - PLAYER_SIZE / 2, Math.max(PLAYER_SIZE / 2, player.x + dx * dist));
         const ny = Math.min(H - START_H / 2, Math.max(FINISH_H / 2, player.y + dy * dist));
         if (!blockedAt(nx, player.y)) player.x = nx;
         if (!blockedAt(player.x, ny)) player.y = ny;
         player.angle = Math.atan2(dx, -dy);                    // 0 = facing up, clockwise
-        player.walk += dt * 12;
+        player.walk += dt * (bootsTimer > 0 ? 19 : 12);
+        if (bootsTimer > 0 && fxRand(0, 1) < dt * 25) {          // dust kicked up by the speed boots
+          addParticle({ kind: 'smoke', x: player.x - dx * 8, y: player.y - dy * 8, vx: -dx * 30, vy: -dy * 30,
+                        life: 0.4, size: 2, grow: 10, color: '#d9c7a3', alpha: 0.4, drag: 3, under: true });
+        }
         const step = Math.floor(player.walk / Math.PI);   // one footstep per half walk cycle
         if (step !== player.lastStep) { player.lastStep = step; sfx.step(); }
       }
@@ -139,7 +143,7 @@ function update(dt) {
       const sec = Math.ceil(timeLeft);
       if (sec <= 5 && sec > 0 && sec !== lastTick) { lastTick = sec; sfx.tick(); }
 
-      const hit = invulnTimer > 0 ? null : hitsCar();
+      const hit = invulnTimer > 0 || ghostTimer > 0 ? null : hitsCar();   // shield grace, or a ghost
       if (hit && player.shield) {
         breakShield(hit);
       } else if (hit) {

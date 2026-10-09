@@ -8,7 +8,7 @@ const TIPS = {
               : 'Use the arrow keys or WASD to walk to the green FINISH.' },
   clock:    { icon: '⏱', text: 'Beat the clock: every second left at the finish is bonus points.' },
   median:   { icon: '🌿', text: 'The grass strip in the middle is safe. Catch your breath here.' },
-  pickup:   { icon: '🪙', text: 'Grab bonuses: 🪙 points · ⏱ time · 🛡 shield · 🐢 slow traffic · ❤️ life.' },
+  pickup:   { icon: '🪙', text: 'Grab bonuses: 🪙 points · ⏱ time · 🛡 shield · 🐢 slow traffic · ❤️ life · 👟 speed · 🧲 coin magnet · 👻 ghost.' },
   rain:     { icon: '🌧', text: 'Rain: wet brakes slip, so cars slide when they stop. Give them extra room.' },
   night:    { icon: '🌙', text: 'Night: watch for headlights. Street lamps light the safe spots.' },
   bus:      { icon: '🚌', text: 'A bus stops to let passengers off. Cars swerve around it — watch the next lane!' },

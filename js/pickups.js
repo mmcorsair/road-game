@@ -3,6 +3,9 @@
 let pickups = [], pickupTimer = 0;
 let slowTimer = 0;       // > 0 while traffic is slowed down
 let invulnTimer = 0;     // > 0 for a moment after a shield absorbs a hit
+let bootsTimer = 0;      // > 0 while wearing speed boots
+let magnetTimer = 0;     // > 0 while coins are pulled in
+let ghostTimer = 0;      // > 0 while vehicles pass through you
 
 const PICKUP_TYPES = {
   coin:   { weight: 45, color: '#f1c40f' },                 // drawn as a spinning coin
@@ -10,19 +13,26 @@ const PICKUP_TYPES = {
   shield: { weight: 15, color: '#3498db', icon: '🛡' },
   slow:   { weight: 12, color: '#1abc9c', icon: '🐢' },
   life:   { weight: 8,  color: '#e74c3c', icon: '❤️' },
+  boots:  { weight: 12, color: '#e67e22', icon: '👟' },
+  magnet: { weight: 8,  color: '#c0392b', icon: '🧲' },
+  ghost:  { weight: 6,  color: '#8e9eff', icon: '👻' },
 };
+
+// Timed power-ups clear when a new attempt starts (new level, or after losing a life).
+function clearPowerUps() {
+  slowTimer = invulnTimer = bootsTimer = magnetTimer = ghostTimer = 0;
+}
 
 function resetPickups() {
   pickups = [];
   pickupTimer = pickupRand(PICKUP_MIN, PICKUP_MAX) / 2;
-  slowTimer = 0;
-  invulnTimer = 0;
+  clearPowerUps();
 }
 
 // Weighted random type, skipping ones that would be useless right now.
 function pickPickupType() {
   const types = Object.keys(PICKUP_TYPES).filter(t =>
-    !(t === 'life' && lives >= MAX_LIVES) && !(t === 'shield' && player.shield));
+    !(t === 'life' && lives >= MAX_LIVES) && !(t === 'shield' && player.shield) && !(t === 'ghost' && ghostTimer > 0));
   let r = pickupRandom() * types.reduce((sum, t) => sum + PICKUP_TYPES[t].weight, 0);
   for (const t of types) {
     r -= PICKUP_TYPES[t].weight;
@@ -44,6 +54,15 @@ function updatePickups(dt) {
   for (const p of pickups) {
     p.t -= dt;
     p.age += dt;
+    if (magnetTimer > 0 && p.type === 'coin') {           // the magnet pulls nearby coins in
+      const d = Math.hypot(player.x - p.x, player.y - p.y);
+      if (d < MAGNET_RADIUS && d > 1) {
+        const step = Math.min(d, MAGNET_PULL * dt);
+        p.x += (player.x - p.x) / d * step;
+        p.y += (player.y - p.y) / d * step;
+        p.pulled = true;
+      }
+    }
     if (p.t > 0 && Math.hypot(p.x - player.x, p.y - player.y) < 22) {
       collectPickup(p);
       p.t = 0;
@@ -52,6 +71,9 @@ function updatePickups(dt) {
   pickups = pickups.filter(p => p.t > 0);
   slowTimer = Math.max(0, slowTimer - dt);
   invulnTimer = Math.max(0, invulnTimer - dt);
+  bootsTimer = Math.max(0, bootsTimer - dt);
+  magnetTimer = Math.max(0, magnetTimer - dt);
+  ghostTimer = Math.max(0, ghostTimer - dt);
 }
 
 function collectPickup(p) {
@@ -72,6 +94,18 @@ function collectPickup(p) {
     case 'shield':
       player.shield = true;
       addPopup('Shield!', p.x, p.y);
+      break;
+    case 'boots':
+      bootsTimer = BOOTS_TIME;
+      addPopup('Speed boots!', p.x, p.y);
+      break;
+    case 'magnet':
+      magnetTimer = MAGNET_TIME;
+      addPopup('Coin magnet!', p.x, p.y);
+      break;
+    case 'ghost':
+      ghostTimer = GHOST_TIME;
+      addPopup('Ghost!', p.x, p.y);
       break;
     case 'slow':
       slowTimer = SLOW_TIME;
@@ -154,6 +188,9 @@ function drawPowerUpStatus() {
   const badges = [];
   if (player && player.shield) badges.push(['🛡', null]);
   if (slowTimer > 0) badges.push(['🐢', slowTimer / SLOW_TIME]);
+  if (bootsTimer > 0) badges.push(['👟', bootsTimer / BOOTS_TIME]);
+  if (magnetTimer > 0) badges.push(['🧲', magnetTimer / MAGNET_TIME]);
+  if (ghostTimer > 0) badges.push(['👻', ghostTimer / GHOST_TIME]);
   badges.forEach(([icon, frac], i) => {
     const x = 22 + i * 34, y = H - START_H / 2 - 4;
     ctx.fillStyle = 'rgba(0,0,0,.45)';
@@ -169,4 +206,13 @@ function drawPowerUpStatus() {
     ctx.textBaseline = 'middle';
     ctx.fillText(icon, x, y + 1);
   });
+}
+
+// Magnet: a pulsing ring showing its reach. Ghost: drawn in drawPlayer (translucent, blue).
+function drawMagnetField(now) {
+  if (magnetTimer <= 0 || state === 'title') return;
+  const pulse = (now / 900) % 1;
+  ctx.strokeStyle = `rgba(231,76,60,${0.35 * (1 - pulse) * Math.min(1, magnetTimer)})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(player.x, player.y, 24 + pulse * (MAGNET_RADIUS - 24), 0, Math.PI * 2); ctx.stroke();
 }

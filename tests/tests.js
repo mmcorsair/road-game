@@ -446,6 +446,65 @@
       eq(pickups.length, 0, 'collected pickups disappear');
     });
 
+    test('speed boots make the player faster for a while', () => {
+      startPlaying(); quietRoad();
+      collect('boots');
+      const y0 = player.y;
+      hold('up');
+      run(1);
+      near(y0 - player.y, PLAYER_SPEED * BOOTS_SPEED, 3, 'distance in 1 s with boots');
+      hold('up', false);
+      run(BOOTS_TIME, () => { timeLeft = TIME_LIMIT; });    // boots wear off while standing still
+      eq(bootsTimer, 0);
+      player.y = H - START_H / 2;
+      const y1 = player.y;
+      hold('up');
+      run(0.5);
+      near(y1 - player.y, PLAYER_SPEED * 0.5, 3, 'normal speed again');
+    });
+
+    test('the magnet pulls nearby coins in — only coins, only nearby', () => {
+      startPlaying(); quietRoad();
+      collect('magnet');
+      const near1 = { type: 'coin', x: player.x + 100, y: player.y, t: 8, age: 1 };
+      const far = { type: 'coin', x: player.x, y: player.y - MAGNET_RADIUS - 60, t: 8, age: 1 };
+      const clock = { type: 'time', x: player.x - 80, y: player.y, t: 8, age: 1 };
+      pickups = [near1, far, clock];
+      const s0 = score;
+      run(1, () => { timeLeft = 20; });
+      eq(score - s0, COIN_POINTS, 'the nearby coin was pulled in and collected');
+      assert(pickups.includes(far) && far.y === player.y - MAGNET_RADIUS - 60, 'far coin untouched');
+      assert(pickups.includes(clock) && clock.x === player.x - 80, 'other pickups are not pulled');
+    });
+
+    test('as a ghost, vehicles pass through you; afterwards they hit again', () => {
+      startPlaying(); quietRoad();
+      collect('ghost');
+      const L = lanes[7];
+      player.y = L.y;
+      L.cars = [plainCar(player.x - L.dir * 80, { speed: 200, v: 200 })];
+      run(1, () => { timeLeft = TIME_LIMIT; });
+      eq(state, 'playing', 'the car went straight through');
+      run(GHOST_TIME, () => { timeLeft = TIME_LIMIT; });
+      L.cars = [plainCar(player.x - L.dir * 80, { speed: 200, v: 200 })];
+      run(1, () => { timeLeft = TIME_LIMIT; return state === 'playing'; });
+      eq(state, 'hit', 'solid again');
+    });
+
+    test('power-ups end when a new attempt starts', () => {
+      startPlaying(); quietRoad();
+      for (const kind of ['boots', 'magnet', 'ghost', 'slow']) collect(kind);
+      loseLife('time'); run(1.5);
+      eq(bootsTimer + magnetTimer + ghostTimer + slowTimer, 0);
+    });
+
+    test('every power-up draws without errors', () => {
+      startPlaying({ lvl: 3 }); quietRoad();
+      for (const kind of ['boots', 'magnet', 'ghost', 'slow', 'shield']) collect(kind);
+      hold('up'); run(0.3);
+      draw();
+    });
+
     test('slow traffic moves vehicles at SLOW_FACTOR speed', () => {
       startPlaying(); quietRoad();
       const L = lanes[2];
@@ -779,7 +838,7 @@
       assert(!hasAchievement('coins'), '4 coins');
       grab('coin');
       assert(hasAchievement('coins'), '5 coins');
-      grab('time'); grab('slow'); grab('life');
+      for (const kind of ['time', 'slow', 'life', 'boots', 'magnet', 'ghost']) grab(kind);
       startPlaying(); quietRoad();               // a new game: kinds collected so far are remembered
       assert(!hasAchievement('hunter'), 'shield still missing');
       grab('shield');

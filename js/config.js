@@ -37,6 +37,9 @@ const COIN_POINTS = 50;
 const TIME_PICKUP = 10;                   // seconds added by a clock pickup
 const MAX_LIVES = 5;
 const SLOW_TIME = 5, SLOW_FACTOR = 0.4;   // slow-traffic power-up: duration and speed multiplier
+const BOOTS_TIME = 5, BOOTS_SPEED = 1.6;  // speed boots: duration and walking-speed multiplier
+const MAGNET_TIME = 8, MAGNET_RADIUS = 140, MAGNET_PULL = 260;   // coin magnet: s, reach (px), pull (px/s)
+const GHOST_TIME = 4;                     // ghost: seconds that vehicles pass through you
 const SHIELD_GRACE = 1.5;                 // seconds of safety after a shield breaks
 const CAR_COLORS =['#e74c3c', '#3498db', '#f1c40f', '#9b59b6', '#1abc9c', '#e67e22', '#ecf0f1', '#2ecc71'];
 

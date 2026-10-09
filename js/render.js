@@ -242,6 +242,10 @@ function drawPlayer() {
   const now = performance.now();
   ctx.save();
   if (invulnTimer > 0 && Math.floor(now / 80) % 2) ctx.globalAlpha = 0.35;   // blink while protected
+  if (ghostTimer > 0) {                                      // ghost: see-through, bluish, gently wobbling
+    ctx.globalAlpha = 0.45 + 0.1 * Math.sin(now / 120);
+    ctx.filter = 'sepia(1) hue-rotate(190deg) saturate(3)';
+  }
   ctx.translate(player.x, player.y - hop);
   ctx.rotate(player.shownAngle + (crashed ? player.spin : 0)); // sprite is drawn facing up
 
@@ -384,7 +388,7 @@ function draw() {
   drawPickups(now);                          // lying on the road; vehicles drive over them
   for (const lane of lanes) for (const c of lane.cars) drawCar(c, vehicleY(c, lane), lane.dir, now);
   drawEmergencyWarnings(now);
-  if (state !== 'title') drawPlayer();
+  if (state !== 'title') { drawMagnetField(now); drawPlayer(); }
   drawNight(now);                            // darkness with headlights and lamps (night levels)
   drawRain();
   if (state !== 'title') {
@@ -396,7 +400,7 @@ function draw() {
 
   if (state === 'title') {
     const today = loadDailyStats();
-    overlay('Road Crossing', 'Cross before the clock runs out', 'Grab bonuses: coins ⏱ 🛡 🐢 ❤️',
+    overlay('Road Crossing', 'Cross before the clock runs out', 'Grab bonuses: coins ⏱ 🛡 🐢 ❤️ 👟 🧲 👻',
       `Skin: ${currentSkin().name}  ·  change it in the ☰ menu`,
       today.best ? `📅 Today's daily best: ${today.best.score.toLocaleString()}` : '📅 New daily challenge every day!',
       touchUI() ? 'Tap the road to play  ·  📅 — daily challenge' : 'Space — play  ·  C / 📅 — daily challenge');
