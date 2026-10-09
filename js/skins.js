@@ -248,8 +248,3 @@ for (const tab of document.querySelectorAll('.tab')) {
   tab.addEventListener('click', () => { panelTab = tab.dataset.tab; renderSkinPicker(); });
 }
 skinPanel.addEventListener('click', e => { if (e.target === skinPanel) closeSkinPicker(); });   // click outside the box
-for (const id of ['skinsBtn', 'skinsLink']) {
-  const btn = document.getElementById(id);
-  btn.addEventListener('pointerdown', e => e.preventDefault());       // don't take keyboard focus
-  btn.addEventListener('click', () => (skinPickerOpen() ? closeSkinPicker() : openSkinPicker()));
-}

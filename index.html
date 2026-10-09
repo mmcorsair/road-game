@@ -30,10 +30,8 @@
     <div class="pad" id="pad-center">
       <button class="btn small" id="pauseBtn" tabindex="-1" aria-label="Pause">&#x23F8;&#xFE0E;</button>
       <button class="btn small" id="muteBtn" tabindex="-1" aria-label="Sound on/off">🔊</button>
-      <button class="btn small" id="fullscreenBtn" tabindex="-1" aria-label="Fullscreen" hidden>&#x26F6;</button>
-      <button class="btn small" id="skinsBtn" tabindex="-1" aria-label="Skins">👕</button>
+      <button class="btn small" id="menuBtn" tabindex="-1" aria-label="Menu">&#x2630;&#xFE0E;</button>
       <button class="btn small" id="dailyBtn" tabindex="-1" aria-label="Daily challenge">📅</button>
-      <button class="btn small" id="achBtn" tabindex="-1" aria-label="Achievements">🏆</button>
     </div>
     <div class="pad" id="pad-right">
       <button class="btn" data-dir="up" tabindex="-1" aria-label="Up">&#x25B2;&#xFE0E;</button>
@@ -42,9 +40,34 @@
   </div>
 </div>
 <div id="help">
-  <span class="kb-help">Arrows / WASD — move &nbsp;·&nbsp; Space — start &nbsp;·&nbsp; P — pause &nbsp;·&nbsp; M — sound: <span id="sound">on</span> &nbsp;·&nbsp; <button id="skinsLink" class="link" tabindex="-1">👕 K — skins</button> &nbsp;·&nbsp; <button id="dailyLink" class="link" tabindex="-1">📅 C — daily</button> &nbsp;·&nbsp; <button id="achLink" class="link" tabindex="-1">🏆 achievements</button></span>
+  <span class="kb-help">Arrows / WASD — move &nbsp;·&nbsp; Space — start &nbsp;·&nbsp; P — pause &nbsp;·&nbsp; M — sound: <span id="sound">on</span> &nbsp;·&nbsp; <button id="menuLink" class="link" tabindex="-1">Esc — ☰ menu</button></span>
   <span class="touch-help">Tap to start &nbsp;·&nbsp; hold the arrows or drag on the road to move</span>
-  &nbsp;·&nbsp; <button id="tipsLink" class="link" tabindex="-1">💡 replay tips</button>
+</div>
+
+<div id="menu" class="modal" hidden>
+  <div class="skins-box menu-box" role="dialog" aria-label="Menu">
+    <div class="skins-head"><strong>Menu</strong><button id="menuClose" class="link" tabindex="-1" aria-label="Close">✕</button></div>
+    <div class="menu-actions">
+      <button class="menu-item primary" id="mResume" tabindex="-1">▶ Resume</button>
+      <button class="menu-item" id="mDaily" tabindex="-1">📅 Daily challenge</button>
+      <button class="menu-item" id="mSkins" tabindex="-1">👕 Skins</button>
+      <button class="menu-item" id="mAch" tabindex="-1">🏆 Achievements <span id="mAchCount"></span></button>
+      <button class="menu-item" id="mTips" tabindex="-1">💡 Replay tips</button>
+      <button class="menu-item" id="mFullscreen" tabindex="-1" hidden>⛶ Fullscreen</button>
+      <button class="menu-item" id="mQuit" tabindex="-1">⏹ Quit to title</button>
+    </div>
+    <h3>Settings</h3>
+    <div class="setting"><span>🔊 Sound</span>
+      <div class="setting-ctl"><input type="range" id="sVolume" min="0" max="100" aria-label="Volume"><button class="toggle" id="sSound" tabindex="-1"></button></div></div>
+    <div class="setting"><span>📳 Screen shake</span><button class="toggle" id="sShake" tabindex="-1"></button></div>
+    <div class="setting"><span>👁 High-contrast signals</span><button class="toggle" id="sContrast" tabindex="-1"></button></div>
+    <div class="setting"><span>🖥 Graphics</span>
+      <div class="seg" id="sGraphics"><button data-v="auto" tabindex="-1">Auto</button><button data-v="high" tabindex="-1">High</button><button data-v="lite" tabindex="-1">Lite</button></div></div>
+    <p class="setting-note" id="sGraphicsNote"></p>
+    <h3>Progress</h3>
+    <button class="menu-item danger" id="mReset" tabindex="-1">🗑 Reset all progress</button>
+    <p class="skins-note menu-keys">Keys: Esc — menu · P — pause · M — sound · K — skins · C — daily challenge</p>
+  </div>
 </div>
 
 <div id="skins" hidden>
@@ -63,6 +86,7 @@
 </div>
 
 <script src="js/config.js"></script>
+<script src="js/settings.js"></script>
 <script src="js/state.js"></script>
 <script src="js/sound.js"></script>
 <script src="js/effects.js"></script>
@@ -76,6 +100,7 @@
 <script src="js/daily.js"></script>
 <script src="js/tutorial.js"></script>
 <script src="js/achievements.js"></script>
+<script src="js/menu.js"></script>
 <script src="js/game.js"></script>
 <script src="js/render.js"></script>
 <script src="js/input.js"></script>

@@ -101,4 +101,14 @@ function drawTurnSignals(c, now) {
     ctx.fillStyle = '#ffb300';
     ctx.fillRect(x - 2.5, y - 2, 5, 4);
   }
+  if (settings.contrast) {                     // high-contrast: a white arrow pointing the way it's moving
+    const s = c.signal.side, tip = y + s * 14;
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-8, y + s * 3); ctx.lineTo(8, y + s * 3); ctx.lineTo(0, tip);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+  }
 }

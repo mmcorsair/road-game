@@ -21,7 +21,14 @@ function enterLiteMode() {
   liteMode = true;
   setRenderScale(1);
   raindrops.length = Math.min(raindrops.length, 60);
-  console.info('Road Crossing: low frame rate, switched to lite mode');
+  console.info('Road Crossing: lite mode');
+}
+
+function exitLiteMode() {
+  if (!liteMode) return;
+  liteMode = false;
+  setRenderScale(Math.min(dpr, MAX_RENDER_SCALE));
+  setupWeatherScene();                         // full rain again
 }
 
 // ---------- Drawing ----------
@@ -386,7 +393,7 @@ function draw() {
   if (state === 'title') {
     const today = loadDailyStats();
     overlay('Road Crossing', 'Cross before the clock runs out', 'Grab bonuses: coins ⏱ 🛡 🐢 ❤️',
-      `Skin: ${currentSkin().name}  ·  👕 to change`,
+      `Skin: ${currentSkin().name}  ·  change it in the ☰ menu`,
       today.best ? `📅 Today's daily best: ${today.best.score.toLocaleString()}` : '📅 New daily challenge every day!',
       touchUI() ? 'Tap the road to play  ·  📅 — daily challenge' : 'Space — play  ·  C / 📅 — daily challenge');
   } else if (state === 'paused') {

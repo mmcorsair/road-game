@@ -13,7 +13,7 @@ function addParticle(p) {
 }
 
 function shake(duration, magnitude) {
-  if (reduceMotion) return;
+  if (reduceMotion || !settings.shake) return;
   shakeTime = shakeDuration = duration;
   shakeMag = magnitude;
 }

@@ -106,7 +106,7 @@ async function shareDaily() {
 }
 
 function startDailyFromUI() {
-  if (canPause()) {                                       // don't throw away a game in progress
+  if (gameInProgress()) {                                 // don't throw away a game in progress (even paused)
     banner = { text: '📅 Finish this game first', t: 1.8 };
     return;
   }
@@ -125,5 +125,3 @@ shareBtn.addEventListener('click', shareDaily);
 const dailyBtn = document.getElementById('dailyBtn');
 dailyBtn.addEventListener('pointerdown', e => e.preventDefault());
 dailyBtn.addEventListener('click', startDailyFromUI);
-document.getElementById('dailyLink').addEventListener('pointerdown', e => e.preventDefault());
-document.getElementById('dailyLink').addEventListener('click', startDailyFromUI);

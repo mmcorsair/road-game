@@ -144,9 +144,3 @@ function renderAchievements() {
 function achievementCount() {
   return `${ACHIEVEMENTS.filter(a => hasAchievement(a.id)).length}/${ACHIEVEMENTS.length}`;
 }
-
-for (const id of ['achBtn', 'achLink']) {
-  const btn = document.getElementById(id);
-  btn.addEventListener('pointerdown', e => e.preventDefault());
-  btn.addEventListener('click', () => openSkinPicker('achievements'));
-}

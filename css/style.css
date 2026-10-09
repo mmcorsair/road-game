@@ -38,7 +38,7 @@ body.touch .touch-help { display: inline; }
 body.touch #controls { display: contents; }   /* its pads become cells of the #stage grid */
 .pad { display: flex; gap: 12px; align-items: center; justify-content: center; }
 #pad-left { grid-area: left; }
-#pad-center { grid-area: center; display: grid; grid-template-columns: repeat(3, auto); gap: 8px; }
+#pad-center { grid-area: center; display: grid; grid-template-columns: repeat(2, auto); gap: 8px; }
 #pad-right { grid-area: right; flex-direction: column; }
 .btn { width: 64px; height: 64px; border: none; border-radius: 16px; padding: 0;
        background: rgba(255, 255, 255, .12); color: #fff; font-size: 26px;
@@ -52,7 +52,7 @@ body.touch #controls { display: contents; }   /* its pads become cells of the #s
   body.touch #hud { width: min(100vw - 24px, 480px); }   /* the road is narrow here; give the HUD room */
   body.touch #stage { grid-template-areas: "left canvas right" "center canvas right";
                       grid-template-columns: auto var(--w) auto; width: auto; column-gap: 24px; }
-  body.touch #pad-center { grid-template-columns: repeat(5, auto); }
+  body.touch #pad-center { grid-template-columns: repeat(4, auto); }
   body.touch #help { display: none; }
 }
 
@@ -61,7 +61,7 @@ body.touch #controls { display: contents; }   /* its pads become cells of the #s
         text-decoration: underline dotted; }
 #skins { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
          background: rgba(0, 0, 0, .6); padding: 16px; }
-#skins[hidden] { display: none; }               /* `display: flex` above would otherwise override [hidden] */
+#skins[hidden], .modal[hidden] { display: none; }               /* `display: flex` above would otherwise override [hidden] */
 .skins-box { background: #262d3d; border-radius: 14px; padding: 16px; width: min(420px, 100%);
              max-height: 100%; overflow-y: auto; box-shadow: 0 10px 40px rgba(0, 0, 0, .6); box-sizing: border-box; }
 .skins-head { display: flex; justify-content: space-between; align-items: center; font-size: 18px; margin-bottom: 12px; }
@@ -98,3 +98,29 @@ body.touch #controls { display: contents; }   /* its pads become cells of the #s
 .ach-desc { opacity: .8; }
 .ach-status { font-size: 16px; }
 .ach.done .ach-status { color: #2ecc71; font-weight: 700; }
+
+/* ---------- Menu ---------- */
+.modal { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+         background: rgba(0, 0, 0, .6); padding: 16px; }
+.menu-box h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; opacity: .55; margin: 18px 0 8px; }
+.menu-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.menu-item { padding: 11px 12px; border: none; border-radius: 10px; background: rgba(255, 255, 255, .08); color: #eee;
+             font: 600 14px system-ui, sans-serif; text-align: left; cursor: pointer; }
+.menu-item:disabled { opacity: .45; cursor: default; }
+.menu-item.primary { grid-column: 1 / -1; background: #2ecc71; color: #fff; text-align: center; font-size: 16px; }
+.menu-item.danger { width: 100%; background: rgba(231, 76, 60, .15); color: #ff9b8f; }
+.menu-item.danger.armed { background: #c0392b; color: #fff; }
+.menu-item[hidden] { display: none; }
+#mAchCount { opacity: .6; font-weight: 400; }
+.setting { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 7px 0;
+           font-size: 14px; border-bottom: 1px solid rgba(255, 255, 255, .06); }
+.setting-ctl { display: flex; align-items: center; gap: 10px; }
+.setting-ctl input[type=range] { width: 110px; accent-color: #2ecc71; }
+.toggle { min-width: 52px; padding: 5px 10px; border: none; border-radius: 14px; background: rgba(255, 255, 255, .12);
+          color: #aab; font: 600 13px system-ui, sans-serif; cursor: pointer; }
+.toggle.on { background: #2ecc71; color: #fff; }
+.seg { display: flex; border-radius: 10px; overflow: hidden; background: rgba(255, 255, 255, .08); }
+.seg button { border: none; background: none; color: #aab; padding: 6px 12px; font: 600 13px system-ui, sans-serif; cursor: pointer; }
+.seg button.active { background: #3a7bff; color: #fff; }
+.setting-note { margin: 4px 0 0; font-size: 12px; opacity: .55; }
+body.touch .menu-keys { display: none; }        /* keyboard shortcuts mean nothing on a phone */

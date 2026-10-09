@@ -170,9 +170,3 @@ function drawTip(now) {
   lines.forEach((line, i) => ctx.fillText(line, 64, top + 20 + i * 19));
   ctx.restore();
 }
-
-for (const id of ['tipsLink']) {
-  const link = document.getElementById(id);
-  link.addEventListener('pointerdown', e => e.preventDefault());
-  link.addEventListener('click', replayTips);
-}

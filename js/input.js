@@ -56,6 +56,11 @@ function setKey(e, down) {
 
 addEventListener('keydown', e => {
   sound.init();
+  if (menuOpen()) {                            // the menu takes over the keyboard while open
+    if (e.key === 'Escape') closeMenu();
+    if (e.key === ' ') e.preventDefault();
+    return;
+  }
   if (skinPickerOpen()) {                       // the skin panel takes over the keyboard while open
     if (e.key === 'Escape' || e.key === 'k' || e.key === 'K') closeSkinPicker();
     if (e.key === ' ') e.preventDefault();
@@ -67,7 +72,8 @@ addEventListener('keydown', e => {
   if (setKey(e, true) || e.key === ' ') e.preventDefault();
   if (e.key === 'm' || e.key === 'M') sound.toggleMute();
   if ((e.key === ' ' || e.key === 'Enter') && (state === 'title' || state === 'gameover')) newGame();
-  if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+  if (e.key === 'Escape') { openMenu(); return; }
+  if (e.key === 'p' || e.key === 'P') {
     if (canPause()) setPaused(true);
     else if (state === 'paused') setPaused(false);
   }
@@ -106,7 +112,7 @@ for (const btn of document.querySelectorAll('[data-dir]')) {
 
 // --- Pause / sound / fullscreen buttons ---
 const noFocus = e => e.preventDefault();     // so Space never "clicks" a focused button
-for (const id of ['pauseBtn', 'muteBtn', 'fullscreenBtn']) {
+for (const id of ['pauseBtn', 'muteBtn']) {
   document.getElementById(id).addEventListener('pointerdown', noFocus);
 }
 document.getElementById('pauseBtn').addEventListener('click', () => {
@@ -117,19 +123,17 @@ document.getElementById('muteBtn').addEventListener('click', () => {
   sound.init();
   sound.toggleMute();
 });
-const fullscreenBtn = document.getElementById('fullscreenBtn');
 const root = document.documentElement;
 const requestFs = root.requestFullscreen || root.webkitRequestFullscreen;
-if (requestFs) {                              // not available on iPhone; "Add to Home Screen" works there
-  fullscreenBtn.hidden = false;
-  fullscreenBtn.addEventListener('click', () => {
-    if (document.fullscreenElement || document.webkitFullscreenElement) {
-      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-    } else {
-      const result = requestFs.call(root);
-      if (result && result.catch) result.catch(() => {});
-    }
-  });
+const fullscreenSupported = !!requestFs;        // not on iPhone; "Add to Home Screen" works there
+
+function toggleFullscreen() {
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  } else if (requestFs) {
+    const result = requestFs.call(root);
+    if (result && result.catch) result.catch(() => {});
+  }
 }
 document.getElementById('controls').addEventListener('contextmenu', e => e.preventDefault());
 

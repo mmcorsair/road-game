@@ -13,7 +13,7 @@ const sound = {
     if (!AC) return;
     this.ctx = new AC();
     this.master = this.ctx.createGain();
-    this.master.gain.value = this.muted ? 0 : 0.5;
+    this.applyVolume();
     this.master.connect(this.ctx.destination);
     // One second of white noise, reused for footsteps and crashes.
     this.noise = this.ctx.createBuffer(1, this.ctx.sampleRate, this.ctx.sampleRate);
@@ -23,9 +23,13 @@ const sound = {
 
   ready() { return this.ctx && !this.muted; },
 
+  applyVolume() {                       // master level from the mute switch and the volume setting
+    if (this.master) this.master.gain.value = this.muted ? 0 : 0.6 * settings.volume;
+  },
+
   toggleMute() {
     this.muted = !this.muted;
-    if (this.master) this.master.gain.value = this.muted ? 0 : 0.5;
+    this.applyVolume();
     try { localStorage.setItem('roadCrossingMuted', this.muted ? '1' : '0'); } catch {}
     updateHud();
   },

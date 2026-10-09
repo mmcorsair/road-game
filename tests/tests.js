@@ -71,6 +71,8 @@
     popups = [];
     achievements = { unlocked: {}, bonusKinds: [] };
     toastQueue = [];
+    settings = { ...DEFAULT_SETTINGS };      // the player's own settings must not affect results
+    if (menuOpen()) closeMenu(false);
     seenTips = new Set(Object.keys(TIPS));   // tips off unless a test turns them on
     activeTip = null;
     tipQueue = [];
@@ -763,6 +765,122 @@
         for (let i = 0; i < 300; i++) watchFrameRate(1 / 20);         // slow, but not playing
         eq(liteMode, false);
       } finally { restore(); }
+    });
+  });
+
+  // ================================================================
+  describe('Menu & settings', () => {
+    const key = k => dispatchEvent(new KeyboardEvent('keydown', { key: k }));
+    const click = id => document.getElementById(id).click();
+
+    test('Esc opens the menu and pauses the game; Esc again closes it and resumes', () => {
+      startPlaying();
+      key('Escape');
+      assert(menuOpen(), 'open');
+      eq(state, 'paused');
+      key('p');
+      eq(state, 'paused', 'other keys are ignored while the menu is open');
+      key('Escape');
+      assert(!menuOpen(), 'closed');
+      eq(state, 'playing');
+    });
+
+    test('opening the menu on the title screen does not start or pause anything', () => {
+      state = 'title';
+      openMenu();
+      eq(state, 'title');
+      eq(document.getElementById('mResume').hidden, true, 'no Resume without a game');
+      closeMenu();
+      eq(state, 'title');
+    });
+
+    test('a daily challenge cannot replace a game in progress, even a paused one', () => {
+      startPlaying();
+      openMenu();
+      eq(document.getElementById('mDaily').disabled, true, 'button disabled');
+      startDailyFromUI();
+      eq(mode, 'normal');
+      closeMenu();
+    });
+
+    test('Quit to title saves the high score', () => {
+      startPlaying();
+      score = 4321;
+      openMenu();
+      click('mQuit');
+      eq(state, 'title');
+      eq(hiScore, 4321);
+      assert(!menuOpen(), 'menu closed');
+    });
+
+    test('Skins and Achievements open the panel on the right tab', () => {
+      state = 'title';
+      openMenu(); click('mAch');
+      assert(!menuOpen() && skinPickerOpen(), 'panel open');
+      eq(panelTab, 'achievements');
+      closeSkinPicker();
+      openMenu(); click('mSkins');
+      eq(panelTab, 'skins');
+      closeSkinPicker();
+    });
+
+    test('screen shake can be turned off', () => {
+      setSetting('shake', false);
+      shakeTime = 0;
+      fx.crash(100, 100, 1, '#f00');
+      eq(shakeTime, 0, 'no shake');
+      setSetting('shake', true);
+      fx.crash(100, 100, 1, '#f00');
+      assert(reduceMotion || shakeTime > 0, 'shakes again');
+    });
+
+    test('graphics: Lite forces lite mode, High leaves it and stops the watchdog', () => {
+      const normal = Math.min(dpr, MAX_RENDER_SCALE);
+      try {
+        setSetting('graphics', 'lite');
+        eq(liteMode, true); eq(renderScale, 1);
+        setSetting('graphics', 'high');
+        eq(liteMode, false); eq(renderScale, normal);
+        startPlaying();
+        for (let i = 0; i < 30 * 5; i++) watchFrameRate(1 / 30);
+        eq(liteMode, false, 'High never drops quality');
+      } finally {
+        settings = { ...DEFAULT_SETTINGS };
+        liteMode = false; slowTime = 0; setRenderScale(normal);
+      }
+    });
+
+    test('settings are saved', () => {
+      setSetting('volume', 0.3);
+      setSetting('contrast', true);
+      const saved = JSON.parse(localStorage.getItem('roadCrossingSettings'));
+      eq(saved.volume, 0.3);
+      eq(saved.contrast, true);
+    });
+
+    test('high-contrast turn signals draw without errors', () => {
+      setSetting('contrast', true);
+      startPlaying(); quietRoad();
+      const c = plainCar(200);
+      lanes[6].cars = [c];
+      c.signal = { target: lanes[7], side: 1, t: 1 };
+      draw();
+    });
+
+    test('Reset needs a second tap, then clears progress but keeps settings', () => {
+      hiScore = 999; saveHiScore();
+      unlockAchievement('first');
+      setSetting('volume', 0.5);
+      state = 'title';
+      openMenu();
+      click('mReset');
+      eq(hiScore, 999, 'first tap only arms it');
+      click('mReset');
+      eq(hiScore, 0);
+      eq(Object.keys(achievements.unlocked).length, 0, 'achievements cleared');
+      eq(localStorage.getItem('roadCrossingHiScore'), null, 'saved high score erased');
+      eq(JSON.parse(localStorage.getItem('roadCrossingSettings')).volume, 0.5, 'settings kept');
+      closeMenu();
     });
   });
 
