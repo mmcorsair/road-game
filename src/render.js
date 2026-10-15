@@ -441,7 +441,12 @@ export function draw() {
       ...(G.gameAch.earned.length ? [G.gameAch.earned.length <= 2 ? `🏆 New: ${G.gameAch.earned.join(', ')}`
                                                              : `🏆 ${G.gameAch.earned.length} new achievements!`] : []),
     ];
-    if (G.mode === 'daily' && G.dailyStats) {
+    if (G.mode === 'practice') {
+      overlay('Practice over', `Started at level ${G.practiceLevel}  ·  reached level ${G.level}`,
+        'Practice games don\'t count toward scores or achievements',
+        touchUI() ? `Tap — level ${G.practiceLevel} again  ·  ☰ — choose another`
+                  : `Space — level ${G.practiceLevel} again  ·  L — choose another level`);
+    } else if (G.mode === 'daily' && G.dailyStats) {
       const best = G.dailyStats.best;
       overlay('Daily challenge over', `Score ${G.score.toLocaleString()}  ·  level ${G.level}`,
         best.score === G.score ? `📅 Today's best! (try ${G.dailyStats.attempts})`

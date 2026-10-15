@@ -156,6 +156,7 @@ export function chooseSkin(id) {
 
 // Called whenever the score grows: announce skins whose threshold was just passed for the first time.
 export function checkSkinUnlocks(oldScore) {
+  if (G.mode === 'practice') return;                     // practice scores don't count
   for (const skin of SKINS) {
     if (skin.score > G.hiScore && oldScore < skin.score && G.score >= skin.score) {
       G.skinsUnlockedThisGame.push(skin.name);

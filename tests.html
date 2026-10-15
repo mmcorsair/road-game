@@ -46,7 +46,7 @@
     const tag = id === 'game' ? 'canvas' : /(Btn|Link|Close)$/.test(id) ? 'button' : 'div';
     const el = document.createElement(tag);
     el.id = id;
-    if (['skins', 'shareBtn', 'menu'].includes(id)) el.hidden = true;   // panels start closed, as in index.html
+    if (['skins', 'shareBtn', 'menu', 'levels'].includes(id)) el.hidden = true;   // panels start closed, as in index.html
     realGetElementById('sandbox').append(el);
     return el;
   })();

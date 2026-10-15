@@ -122,6 +122,7 @@
     }
   }
   function saveHiScore() {
+    if (G.mode === "practice") return;
     G.hiScore = Math.max(G.hiScore, G.score);
     try {
       localStorage.setItem("roadCrossingHiScore", G.hiScore);
@@ -660,6 +661,63 @@
     ctx.restore();
   }
 
+  // src/practice.js
+  var PRACTICE_LEVELS = 20;
+  var panel = document.getElementById("levels");
+  var grid = document.getElementById("levelGrid");
+  var levelPickerOpen = () => !panel.hidden;
+  function levelFeatures(lvl) {
+    const items = [];
+    const boss = bossFor(lvl);
+    if (boss) items.push([BOSS_ICONS[boss], `Boss: ${BOSS_NAMES[boss]}`]);
+    const w = weatherFor(lvl);
+    if (w.rain) items.push(["\u{1F327}", "rain"]);
+    if (w.night) items.push(["\u{1F319}", "night"]);
+    if (lvl >= BIKE_LEVEL) items.push(["\u{1F3CD}", "motorbikes"]);
+    if (!boss) {
+      const savedLevel = G.level;
+      G.level = lvl;
+      if (railLaneCount() > 0) items.push(["\u{1F686}", "trains"]);
+      G.level = savedLevel;
+      if (hasBusStop(lvl)) items.push(["\u{1F68C}", "bus stop"]);
+    }
+    if (lvl >= EMERGENCY_LEVEL) items.push(["\u{1F691}", "ambulances"]);
+    return items;
+  }
+  function openLevelPicker() {
+    releaseKeys();
+    panel.hidden = false;
+    grid.textContent = "";
+    for (let lvl = 1; lvl <= PRACTICE_LEVELS; lvl++) {
+      const features = levelFeatures(lvl);
+      const btn = document.createElement("button");
+      btn.className = "level-card" + (bossFor(lvl) ? " boss" : "");
+      btn.tabIndex = -1;
+      btn.title = `Level ${lvl}` + (features.length ? ": " + features.map((f) => f[1]).join(", ") : "");
+      const num = document.createElement("strong");
+      num.textContent = lvl;
+      const icons = document.createElement("span");
+      icons.textContent = features.map((f) => f[0]).join("") || "\xB7";
+      btn.append(num, icons);
+      btn.addEventListener("click", () => startPractice(lvl));
+      grid.append(btn);
+    }
+  }
+  function closeLevelPicker() {
+    panel.hidden = true;
+  }
+  function startPractice(lvl) {
+    closeLevelPicker();
+    sound.init();
+    newGame("practice", lvl);
+  }
+  function initPractice() {
+    document.getElementById("levelsClose").addEventListener("click", closeLevelPicker);
+    panel.addEventListener("click", (e) => {
+      if (e.target === panel) closeLevelPicker();
+    });
+  }
+
   // src/menu.js
   var menu = document.getElementById("menu");
   var $ = (id) => document.getElementById(id);
@@ -691,6 +749,8 @@
     $("mResume").hidden = !inGame;
     $("mQuit").hidden = !inGame;
     $("mDaily").disabled = inGame;
+    $("mPractice").disabled = inGame;
+    $("mPractice").textContent = inGame ? "\u{1F3AF} Practice a level (after this game)" : "\u{1F3AF} Practice a level";
     $("mDaily").textContent = inGame ? "\u{1F4C5} Daily challenge (after this game)" : "\u{1F4C5} Daily challenge";
     $("mAchCount").textContent = achievementCount();
     $("mFullscreen").hidden = !fullscreenSupported;
@@ -750,6 +810,10 @@
     onClick("mDaily", () => {
       closeMenu(false);
       startDailyFromUI();
+    });
+    onClick("mPractice", () => {
+      closeMenu(false);
+      openLevelPicker();
     });
     onClick("mSkins", () => {
       closeMenu(false);
@@ -939,10 +1003,14 @@ ${s.best.row}${url}`;
     for (const btn of document.querySelectorAll(".btn.active")) btn.classList.remove("active");
     syncKeys();
   }
+  function playAgain() {
+    if (G.state === "gameover" && G.mode === "practice") newGame("practice", G.practiceLevel);
+    else newGame();
+  }
   function startOrResume() {
     sound.init();
     if (G.state === "title" || G.state === "gameover") {
-      newGame();
+      playAgain();
       return true;
     }
     if (G.state === "paused") {
@@ -1024,6 +1092,11 @@ ${s.best.row}${url}`;
   function initInput() {
     addEventListener("keydown", (e) => {
       sound.init();
+      if (levelPickerOpen()) {
+        if (e.key === "Escape" || e.key === "l" || e.key === "L") closeLevelPicker();
+        if (e.key === " ") e.preventDefault();
+        return;
+      }
       if (menuOpen()) {
         if (e.key === "Escape") closeMenu();
         if (e.key === " ") e.preventDefault();
@@ -1042,13 +1115,17 @@ ${s.best.row}${url}`;
         newGame("daily");
         return;
       }
+      if ((e.key === "l" || e.key === "L") && (G.state === "title" || G.state === "gameover")) {
+        openLevelPicker();
+        return;
+      }
       if ((e.key === "r" || e.key === "R") && G.state === "gameover" && G.mode === "daily") {
         shareDaily();
         return;
       }
       if (setKey(e, true) || e.key === " ") e.preventDefault();
       if (e.key === "m" || e.key === "M") sound.toggleMute();
-      if ((e.key === " " || e.key === "Enter") && (G.state === "title" || G.state === "gameover")) newGame();
+      if ((e.key === " " || e.key === "Enter") && (G.state === "title" || G.state === "gameover")) playAgain();
       if (e.key === "Escape") {
         openMenu();
         return;
@@ -1285,6 +1362,7 @@ ${s.best.row}${url}`;
     renderSkinPicker();
   }
   function checkSkinUnlocks(oldScore) {
+    if (G.mode === "practice") return;
     for (const skin of SKINS) {
       if (skin.score > G.hiScore && oldScore < skin.score && G.score >= skin.score) {
         G.skinsUnlockedThisGame.push(skin.name);
@@ -1426,7 +1504,7 @@ ${s.best.row}${url}`;
   }
   var hasAchievement = (id) => id in G.achievements.unlocked;
   function unlockAchievement(id) {
-    if (hasAchievement(id)) return;
+    if (hasAchievement(id) || G.mode === "practice") return;
     G.achievements.unlocked[id] = todayKey();
     saveAchievements();
     const a = ACHIEVEMENT_BY_ID[id];
@@ -1458,6 +1536,7 @@ ${s.best.row}${url}`;
     for (const [points, id] of SCORE_ACHIEVEMENTS) if (G.score >= points) unlockAchievement(id);
   }
   function achOnPickup(type) {
+    if (G.mode === "practice") return;
     if (type === "coin" && ++G.gameAch.coins >= 5) unlockAchievement("coins");
     if (!G.achievements.bonusKinds.includes(type)) {
       G.achievements.bonusKinds.push(type);
@@ -2600,7 +2679,14 @@ ${s.best.row}${url}`;
         ...G.skinsUnlockedThisGame.length ? [`\u{1F455} Unlocked: ${G.skinsUnlockedThisGame.join(", ")} \u2014 try it on!`] : [],
         ...G.gameAch.earned.length ? [G.gameAch.earned.length <= 2 ? `\u{1F3C6} New: ${G.gameAch.earned.join(", ")}` : `\u{1F3C6} ${G.gameAch.earned.length} new achievements!`] : []
       ];
-      if (G.mode === "daily" && G.dailyStats) {
+      if (G.mode === "practice") {
+        overlay(
+          "Practice over",
+          `Started at level ${G.practiceLevel}  \xB7  reached level ${G.level}`,
+          "Practice games don't count toward scores or achievements",
+          touchUI() ? `Tap \u2014 level ${G.practiceLevel} again  \xB7  \u2630 \u2014 choose another` : `Space \u2014 level ${G.practiceLevel} again  \xB7  L \u2014 choose another level`
+        );
+      } else if (G.mode === "daily" && G.dailyStats) {
         const best = G.dailyStats.best;
         overlay(
           "Daily challenge over",
@@ -2631,6 +2717,7 @@ ${s.best.row}${url}`;
   // src/boss.js
   var BOSSES = ["parade", "highway", "roadworks"];
   var BOSS_NAMES = { parade: "the Parade", highway: "the Highway", roadworks: "Roadworks" };
+  var BOSS_ICONS = { parade: "\u{1F389}", highway: "\u{1F6E3}", roadworks: "\u{1F6A7}" };
   var FLOAT_COLORS = ["#e84393", "#fdcb6e", "#00cec9", "#6c5ce7", "#ff7675", "#55efc4", "#fd79a8"];
   G.boss = null;
   var bossFor = (lvl) => lvl % BOSS_EVERY === 0 ? BOSSES[(lvl / BOSS_EVERY - 1) % BOSSES.length] : null;
@@ -3156,10 +3243,11 @@ ${s.best.row}${url}`;
   }
 
   // src/game.js
-  function newGame(newMode = "normal") {
+  function newGame(newMode = "normal", startLevel = 1) {
     G.mode = newMode;
     if (G.mode === "daily") startDaily();
-    G.level = 1;
+    G.level = startLevel;
+    G.practiceLevel = startLevel;
     G.lives = START_LIVES;
     G.score = 0;
     G.newHighScore = false;
@@ -3348,7 +3436,7 @@ ${s.best.row}${url}`;
             G.state = "playing";
           } else {
             G.state = "gameover";
-            G.newHighScore = G.score > G.hiScore;
+            G.newHighScore = G.mode !== "practice" && G.score > G.hiScore;
             saveHiScore();
             if (G.mode === "daily") finishDaily();
             updateHud();
@@ -3373,10 +3461,11 @@ ${s.best.row}${url}`;
     }
   }
   function updateHud() {
-    document.getElementById("level").textContent = `${G.mode === "daily" ? "\u{1F4C5} " : ""}Level ${G.level}${G.boss ? " \u{1F451}" : ""}${weatherIcons()}`;
+    const modeIcon = { daily: "\u{1F4C5} ", practice: "\u{1F3AF} " }[G.mode] || "";
+    document.getElementById("level").textContent = `${modeIcon}Level ${G.level}${G.boss ? " \u{1F451}" : ""}${weatherIcons()}`;
     document.getElementById("score").textContent = `Score ${G.score}`;
     document.getElementById("lives").textContent = "\u2764\uFE0F".repeat(Math.max(0, G.lives)) || "\u{1F480}";
-    document.getElementById("hiscore").textContent = `Hi ${Math.max(G.hiScore, G.score)}`;
+    document.getElementById("hiscore").textContent = `Hi ${G.mode === "practice" ? G.hiScore : Math.max(G.hiScore, G.score)}`;
     document.getElementById("sound").textContent = sound.muted ? "off" : "on";
     document.getElementById("muteBtn").textContent = sound.muted ? "\u{1F507}" : "\u{1F50A}";
   }
@@ -3788,6 +3877,7 @@ ${s.best.row}${url}`;
   function start() {
     initSkins();
     initDaily();
+    initPractice();
     initMenu();
     initInput();
     buildLanes();

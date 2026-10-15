@@ -15,10 +15,12 @@ import { updateTips } from './tutorial.js';
 import { achOnLevelComplete, achOnLifeLost, achOnNewGame, achOnNewLevel, achOnScore, achUpdate, pumpToasts } from './achievements.js';
 import { vibrate } from './input.js';
 
-export function newGame(newMode = 'normal') {
+// newMode: 'normal', 'daily' or 'practice' (which may start at any level).
+export function newGame(newMode = 'normal', startLevel = 1) {
   G.mode = newMode;
   if (G.mode === 'daily') startDaily();
-  G.level = 1;
+  G.level = startLevel;
+  G.practiceLevel = startLevel;
   G.lives = START_LIVES;
   G.score = 0;
   G.newHighScore = false;
@@ -204,7 +206,7 @@ export function update(dt) {
         if (G.lives > 0) { startAttempt(); G.state = 'playing'; }
         else {
           G.state = 'gameover';
-          G.newHighScore = G.score > G.hiScore;
+          G.newHighScore = G.mode !== 'practice' && G.score > G.hiScore;
           saveHiScore();
           if (G.mode === 'daily') finishDaily();
           updateHud();
@@ -231,10 +233,11 @@ export function update(dt) {
 }
 
 export function updateHud() {
-  document.getElementById('level').textContent = `${G.mode === 'daily' ? '📅 ' : ''}Level ${G.level}${G.boss ? ' 👑' : ''}${weatherIcons()}`;
+  const modeIcon = { daily: '📅 ', practice: '🎯 ' }[G.mode] || '';
+  document.getElementById('level').textContent = `${modeIcon}Level ${G.level}${G.boss ? ' 👑' : ''}${weatherIcons()}`;
   document.getElementById('score').textContent = `Score ${G.score}`;
   document.getElementById('lives').textContent = '❤️'.repeat(Math.max(0, G.lives)) || '💀';
-  document.getElementById('hiscore').textContent = `Hi ${Math.max(G.hiScore, G.score)}`;
+  document.getElementById('hiscore').textContent = `Hi ${G.mode === 'practice' ? G.hiScore : Math.max(G.hiScore, G.score)}`;
   document.getElementById('sound').textContent = sound.muted ? 'off' : 'on';
   document.getElementById('muteBtn').textContent = sound.muted ? '🔇' : '🔊';
 }

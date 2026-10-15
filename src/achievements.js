@@ -53,7 +53,7 @@ export function saveAchievements() {
 export const hasAchievement = id => id in G.achievements.unlocked;
 
 export function unlockAchievement(id) {
-  if (hasAchievement(id)) return;
+  if (hasAchievement(id) || G.mode === 'practice') return;   // practice games don't count
   G.achievements.unlocked[id] = todayKey();
   saveAchievements();
   const a = ACHIEVEMENT_BY_ID[id];
@@ -93,6 +93,7 @@ export function achOnScore() {
 }
 
 export function achOnPickup(type) {
+  if (G.mode === 'practice') return;
   if (type === 'coin' && ++G.gameAch.coins >= 5) unlockAchievement('coins');
   if (!G.achievements.bonusKinds.includes(type)) {
     G.achievements.bonusKinds.push(type);

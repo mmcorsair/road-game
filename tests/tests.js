@@ -23,6 +23,7 @@ import { addScore, loseLife, newGame, startAttempt, startCountdown, update } fro
 import { canvas, ctx, dpr, draw, setRenderScale } from '../src/render.js';
 import { buttons, drag, keyboard, releaseKeys, setPaused, syncKeys } from '../src/input.js';
 import { watchFrameRate } from '../src/main.js';
+import { PRACTICE_LEVELS, closeLevelPicker, levelFeatures, levelPickerOpen, openLevelPicker, startPractice } from '../src/practice.js';
 
 (() => {
   // ---------- Tiny test runner ----------
@@ -1289,6 +1290,74 @@ import { watchFrameRate } from '../src/main.js';
       near(music.bus.gain.value, MUSIC_LEVEL * 0.25, 1e-6);
       eq(JSON.parse(localStorage.getItem('roadCrossingSettings')).musicVolume, 0.25);
     }));
+  });
+
+  // ================================================================
+  describe('Practice mode', () => {
+    const key = k => dispatchEvent(new KeyboardEvent('keydown', { key: k }));
+
+    test('practice starts at the chosen level, with that level\'s road', () => {
+      startPractice(7);
+      eq(G.mode, 'practice');
+      eq(G.level, 7);
+      eq(G.state, 'countdown');
+      eq(G.lanes.filter(l => l.rail).length, 2, 'level 7 has two railway lanes');
+      run(COUNTDOWN_STEP * 3 + 0.1);
+      eq(G.state, 'playing');
+    });
+
+    test('practice games never save a high score, unlock skins or earn achievements', () => {
+      G.hiScore = 100; saveHiScore();
+      startPractice(9);
+      G.state = 'playing'; quietRoad();
+      addScore(6000, 0, 0);                       // would unlock skins and score achievements
+      hold('up');
+      run(10, () => G.state === 'playing');       // completes level 9 -> "reaching level 10"
+      hold('up', false);
+      eq(G.state, 'levelup');
+      eq(Object.keys(G.achievements.unlocked).length, 0, 'no achievements');
+      eq(G.skinsUnlockedThisGame.length, 0, 'no skins');
+      G.state = 'playing'; G.lives = 1; loseLife('time'); run(1.5);
+      eq(G.state, 'gameover');
+      eq(G.hiScore, 100, 'high score unchanged');
+      eq(localStorage.getItem('roadCrossingHiScore'), '100', 'saved high score unchanged');
+      eq(G.newHighScore, false);
+    });
+
+    test('Space on "Practice over" restarts the same level', () => {
+      startPractice(12);
+      G.state = 'playing'; quietRoad();
+      G.lives = 1; loseLife('time'); run(1.5);
+      eq(G.state, 'gameover');
+      key(' ');
+      eq(G.mode, 'practice');
+      eq(G.level, 12);
+      eq(G.state, 'countdown');
+    });
+
+    test('the level picker lists every level with what it contains', () => {
+      openLevelPicker();
+      eq(document.getElementById('levelGrid').children.length, PRACTICE_LEVELS);
+      closeLevelPicker();
+      const icons = lvl => levelFeatures(lvl).map(f => f[0]).join('');
+      eq(icons(1), '', 'level 1: plain road');
+      assert(icons(2).includes('🌧') && icons(2).includes('🏍') && icons(2).includes('🚌'), `level 2: ${icons(2)}`);
+      assert(icons(3).includes('🌙') && icons(3).includes('🚆'), `level 3: ${icons(3)}`);
+      assert(icons(5).includes('🎉') && !icons(5).includes('🚆'), `level 5 (parade, no trains): ${icons(5)}`);
+      eq(G.level, 1, 'checking a level does not change the current one');
+    });
+
+    test('L opens the picker on the title screen, Esc closes it; not available mid-game', () => {
+      G.state = 'title';
+      key('l');
+      assert(levelPickerOpen(), 'open');
+      key('Escape');
+      assert(!levelPickerOpen(), 'closed');
+      startPlaying();
+      openMenu();
+      eq(document.getElementById('mPractice').disabled, true, 'menu button disabled during a game');
+      closeMenu();
+    });
   });
 
   // ================================================================

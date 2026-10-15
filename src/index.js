@@ -20,6 +20,7 @@ import './skins.js';
 import './daily.js';
 import './tutorial.js';
 import './achievements.js';
+import './practice.js';
 import './menu.js';
 import './game.js';
 import './render.js';

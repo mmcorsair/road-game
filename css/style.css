@@ -124,3 +124,13 @@ body.touch #controls { display: contents; }   /* its pads become cells of the #s
 .seg button.active { background: #3a7bff; color: #fff; }
 .setting-note { margin: 4px 0 0; font-size: 12px; opacity: .55; }
 body.touch .menu-keys { display: none; }        /* keyboard shortcuts mean nothing on a phone */
+
+/* ---------- Practice: level picker ---------- */
+#levelGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px; }
+.level-card { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border: 2px solid transparent;
+              border-radius: 10px; background: rgba(255, 255, 255, .07); color: #eee; cursor: pointer;
+              font: 12px system-ui, sans-serif; }
+.level-card strong { font-size: 20px; }
+.level-card span { min-height: 16px; letter-spacing: 1px; }
+.level-card:hover { background: rgba(255, 255, 255, .14); }
+.level-card.boss { border-color: rgba(241, 196, 15, .6); background: rgba(241, 196, 15, .1); }

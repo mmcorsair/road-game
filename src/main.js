@@ -9,6 +9,7 @@ import { initDaily } from './daily.js';
 import { tipTimeScale } from './tutorial.js';
 import { initMenu, menuTick } from './menu.js';
 import { initInput } from './input.js';
+import { initPractice } from './practice.js';
 import { update, updateHud } from './game.js';
 import { draw, enterLiteMode } from './render.js';
 
@@ -47,6 +48,7 @@ export function frame(now) {
 export function start() {
   initSkins();
   initDaily();
+  initPractice();
   initMenu();                      // also applies the saved settings
   initInput();
   buildLanes();

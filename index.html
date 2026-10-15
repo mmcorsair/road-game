@@ -44,12 +44,21 @@
   <span class="touch-help">Tap to start &nbsp;·&nbsp; hold the arrows or drag on the road to move</span>
 </div>
 
+<div id="levels" class="modal" hidden>
+  <div class="skins-box levels-box" role="dialog" aria-label="Practice a level">
+    <div class="skins-head"><strong>🎯 Practice a level</strong><button id="levelsClose" class="link" tabindex="-1" aria-label="Close">✕</button></div>
+    <div id="levelGrid"></div>
+    <p class="skins-note">Practice games don't save scores or earn achievements. 👑 boss · 🌧 rain · 🌙 night · 🏍 motorbikes · 🚆 trains · 🚌 bus · 🚑 ambulances</p>
+  </div>
+</div>
+
 <div id="menu" class="modal" hidden>
   <div class="skins-box menu-box" role="dialog" aria-label="Menu">
     <div class="skins-head"><strong>Menu</strong><button id="menuClose" class="link" tabindex="-1" aria-label="Close">✕</button></div>
     <div class="menu-actions">
       <button class="menu-item primary" id="mResume" tabindex="-1">▶ Resume</button>
       <button class="menu-item" id="mDaily" tabindex="-1">📅 Daily challenge</button>
+      <button class="menu-item" id="mPractice" tabindex="-1">🎯 Practice a level</button>
       <button class="menu-item" id="mSkins" tabindex="-1">👕 Skins</button>
       <button class="menu-item" id="mAch" tabindex="-1">🏆 Achievements <span id="mAchCount"></span></button>
       <button class="menu-item" id="mTips" tabindex="-1">💡 Replay tips</button>
@@ -68,7 +77,7 @@
     <p class="setting-note" id="sGraphicsNote"></p>
     <h3>Progress</h3>
     <button class="menu-item danger" id="mReset" tabindex="-1">🗑 Reset all progress</button>
-    <p class="skins-note menu-keys">Keys: Esc — menu · P — pause · M — sound · K — skins · C — daily challenge</p>
+    <p class="skins-note menu-keys">Keys: Esc — menu · P — pause · M — sound · K — skins · C — daily challenge · L — practice</p>
   </div>
 </div>
 

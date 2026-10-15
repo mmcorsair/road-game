@@ -12,6 +12,7 @@ import { replayTips } from './tutorial.js';
 import { achievementCount, toast } from './achievements.js';
 import { updateHud } from './game.js';
 import { fullscreenSupported, releaseKeys, setPaused, toggleFullscreen } from './input.js';
+import { openLevelPicker } from './practice.js';
 
 export const menu = document.getElementById('menu');
 export const $ = id => document.getElementById(id);
@@ -48,6 +49,8 @@ export function renderMenu() {
   $('mResume').hidden = !inGame;
   $('mQuit').hidden = !inGame;
   $('mDaily').disabled = inGame;
+  $('mPractice').disabled = inGame;
+  $('mPractice').textContent = inGame ? '🎯 Practice a level (after this game)' : '🎯 Practice a level';
   $('mDaily').textContent = inGame ? '📅 Daily challenge (after this game)' : '📅 Daily challenge';
   $('mAchCount').textContent = achievementCount();
   $('mFullscreen').hidden = !fullscreenSupported;
@@ -115,6 +118,7 @@ export function initMenu() {
   menu.addEventListener('click', e => { if (e.target === menu) closeMenu(); });
   onClick('mResume', () => closeMenu());
   onClick('mDaily', () => { closeMenu(false); startDailyFromUI(); });
+  onClick('mPractice', () => { closeMenu(false); openLevelPicker(); });
   onClick('mSkins', () => { closeMenu(false); openSkinPicker('skins'); });
   onClick('mAch', () => { closeMenu(false); openSkinPicker('achievements'); });
   onClick('mTips', () => { replayTips(); renderMenu(); });
