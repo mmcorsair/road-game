@@ -705,10 +705,14 @@ import { PRACTICE_LEVELS, closeLevelPicker, levelFeatures, levelPickerOpen, open
 
   // ================================================================
   describe('Bus', () => {
-    test('bus stops on even levels from 2', () => {
-      for (const lvl of [1, 2, 3, 4, 5, 6]) {
+    test('a bus stop on every level from 2, except boss levels', () => {
+      for (let lvl = 1; lvl <= 12; lvl++) {
         G.level = lvl; buildLanes();
-        eq(G.lanes.some(l => l.busStop), lvl % 2 === 0, `bus stop on level ${lvl}`);
+        const hasStop = G.lanes.some(l => l.busStop);
+        if (lvl === 1 || bossFor(lvl)) { eq(hasStop, false, `no bus stop on level ${lvl}`); continue; }
+        // Only acceptable reason for none: every curb lane is a railway or a reversible lane.
+        const curb = [0, LANES_PER_SIDE - 1, LANES_PER_SIDE, LANES_PER_SIDE * 2 - 1].map(i => G.lanes[i]);
+        assert(hasStop || curb.every(l => l.rail || l.reversible), `bus stop on level ${lvl}`);
       }
     });
 

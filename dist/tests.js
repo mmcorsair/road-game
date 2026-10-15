@@ -2403,7 +2403,7 @@ ${s.best.row}${url}`;
   }
 
   // src/bus.js
-  var hasBusStop = (lvl) => lvl >= 2 && lvl % 2 === 0;
+  var hasBusStop = (lvl) => lvl >= 2;
   function setupBusStop() {
     for (const l of G.lanes) l.busStop = null;
     if (hasBusStop(G.level)) {
@@ -4832,11 +4832,17 @@ ${s.best.row}${url}`;
       });
     });
     describe("Bus", () => {
-      test("bus stops on even levels from 2", () => {
-        for (const lvl of [1, 2, 3, 4, 5, 6]) {
+      test("a bus stop on every level from 2, except boss levels", () => {
+        for (let lvl = 1; lvl <= 12; lvl++) {
           G.level = lvl;
           buildLanes();
-          eq(G.lanes.some((l) => l.busStop), lvl % 2 === 0, `bus stop on level ${lvl}`);
+          const hasStop = G.lanes.some((l) => l.busStop);
+          if (lvl === 1 || bossFor(lvl)) {
+            eq(hasStop, false, `no bus stop on level ${lvl}`);
+            continue;
+          }
+          const curb = [0, LANES_PER_SIDE - 1, LANES_PER_SIDE, LANES_PER_SIDE * 2 - 1].map((i) => G.lanes[i]);
+          assert(hasStop || curb.every((l) => l.rail || l.reversible), `bus stop on level ${lvl}`);
         }
       });
       test("a bus stops at its stop, lets passengers off, then drives on", () => {

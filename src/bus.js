@@ -1,5 +1,5 @@
 // ---------- Bus stop ----------
-// On even levels from 2, a curb lane gets a bus stop. Now and then a bus pulls in, stops with its
+// On every level from 2 (except boss levels), a curb lane gets a bus stop. Now and then a bus pulls in, stops with its
 // hazard lights on, lets passengers off and drives on — cars queue behind it or swerve around it.
 import { G } from './store.js';
 import { BUS_DWELL, BUS_MAX, BUS_MIN, CAR_COLORS, LANES_PER_SIDE, LANE_H, W, fxRand, pickFrom, rand } from './config.js';
@@ -8,7 +8,7 @@ import { addParticle } from './effects.js';
 import { brakeDecel } from './weather.js';
 import { ctx } from './render.js';
 
-export const hasBusStop = lvl => lvl >= 2 && lvl % 2 === 0;
+export const hasBusStop = lvl => lvl >= 2;
 
 // Called by buildLanes() for each level, after the railway and reversible lanes are chosen.
 export function setupBusStop() {

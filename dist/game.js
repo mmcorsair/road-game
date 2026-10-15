@@ -2403,7 +2403,7 @@ ${s.best.row}${url}`;
   }
 
   // src/bus.js
-  var hasBusStop = (lvl) => lvl >= 2 && lvl % 2 === 0;
+  var hasBusStop = (lvl) => lvl >= 2;
   function setupBusStop() {
     for (const l of G.lanes) l.busStop = null;
     if (hasBusStop(G.level)) {

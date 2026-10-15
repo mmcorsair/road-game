@@ -83,7 +83,7 @@ export function buildLanes() {
       lane.reversible = true;
       lane.switchTimer = rand(REVERSE_MIN, REVERSE_MAX);
     }
-    setupBusStop();                // a bus stop on even levels
+    setupBusStop();                // a bus stop from level 2
   }
   // Pre-simulate so the road is already full of traffic (lane by lane, so no lane changes).
   G.presimulating = true;
