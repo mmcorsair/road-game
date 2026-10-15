@@ -2,7 +2,9 @@
 // Player preferences, saved in the browser. Changed from the menu (menu.js); read everywhere else.
 // (Mute keeps its own older key, roadCrossingMuted, so existing players keep their choice.)
 const DEFAULT_SETTINGS = {
-  volume: 0.8,          // 0…1
+  volume: 0.8,          // 0…1, sound effects (and the master level)
+  musicOn: true,        // background music (music.js)
+  musicVolume: 0.6,     // 0…1
   shake: true,          // screen shake on crashes
   graphics: 'auto',     // 'auto' (switch to lite mode if slow), 'high' or 'lite'
   contrast: false,      // high-contrast signals: turn signals also show a white arrow
@@ -22,6 +24,7 @@ function setSetting(key, value) {
 // Makes the current settings take effect (called at start-up and after every change).
 function applySettings() {
   sound.applyVolume();
+  applyMusicVolume();
   if (settings.graphics === 'lite') enterLiteMode();
   else if (settings.graphics === 'high') exitLiteMode();
 }

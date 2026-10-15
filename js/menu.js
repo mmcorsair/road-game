@@ -45,6 +45,9 @@ function renderMenu() {
   const toggle = (id, on) => { $(id).textContent = on ? 'On' : 'Off'; $(id).classList.toggle('on', on); };
   toggle('sSound', !sound.muted);
   toggle('sShake', settings.shake);
+  toggle('sMusic', settings.musicOn);
+  $('sMusicVolume').value = Math.round(settings.musicVolume * 100);
+  $('sMusicVolume').disabled = !settings.musicOn;
   toggle('sContrast', settings.contrast);
   $('sVolume').value = Math.round(settings.volume * 100);
   $('sVolume').disabled = sound.muted;
@@ -108,6 +111,8 @@ onClick('mReset', () => {
 
 onClick('sSound', () => { sound.init(); sound.toggleMute(); renderMenu(); });
 onClick('sShake', () => { setSetting('shake', !settings.shake); renderMenu(); });
+onClick('sMusic', () => { sound.init(); setSetting('musicOn', !settings.musicOn); renderMenu(); });
+$('sMusicVolume').addEventListener('input', e => { setSetting('musicVolume', e.target.value / 100); });
 onClick('sContrast', () => { setSetting('contrast', !settings.contrast); renderMenu(); });
 $('sVolume').addEventListener('input', e => { setSetting('volume', e.target.value / 100); });
 $('sVolume').addEventListener('change', () => { sound.init(); sfx.point(); });   // a sample at the new volume

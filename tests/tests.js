@@ -1159,6 +1159,117 @@
   });
 
   // ================================================================
+  describe('Music', () => {
+    // A stand-in for the Web Audio API that records every note scheduled.
+    function withFakeAudio(fn) {
+      const log = [];
+      const param = () => ({ value: 0, setValueAtTime(v) { this.value = v; }, exponentialRampToValueAtTime() {},
+                             linearRampToValueAtTime() {}, cancelScheduledValues() {} });
+      const node = extra => ({ connect(dest) { this.dest = dest; }, disconnect() {}, ...extra });
+      // Music notes are wired (via a gain, maybe a filter) into music.bus; sound effects are not.
+      const isMusic = n => { for (let i = 0; n && i < 4; i++, n = n.dest) if (n === music.bus) return true; return false; };
+      const ctx = {
+        currentTime: 0, state: 'running', suspend() {}, resume() {},
+        createOscillator: () => { const o = node({ type: 'sine', frequency: param(), stop() {},
+          start(t) { if (isMusic(o)) log.push({ kind: 'osc', type: o.type, freq: o.frequency.value, t }); } }); return o; },
+        createGain: () => node({ gain: param() }),
+        createBiquadFilter: () => node({ type: '', frequency: param(), Q: param() }),
+        createBufferSource: () => { const b = node({ buffer: null, loop: false, stop() {},
+          start(t) { if (isMusic(b)) log.push({ kind: 'noise', t }); } }); return b; },
+        createStereoPanner: () => node({ pan: param() }),
+      };
+      const saved = { ctx: sound.ctx, master: sound.master, noise: sound.noise, muted: sound.muted };
+      Object.assign(sound, { ctx, master: ctx.createGain(), noise: {}, muted: false });
+      try {
+        fn({ ctx, log, play(seconds, each) {                    // real-time frames with the audio clock running
+          for (let i = 0; i < Math.round(seconds * 60); i++) {
+            ctx.currentTime += 1 / 60;
+            if (each) each();
+            update(1 / 60);
+            musicTick();
+          }
+        } });
+      } finally {
+        if (music.playing) stopMusic();
+        Object.assign(sound, saved);
+        Object.assign(music, { bus: null, playing: false });
+      }
+    }
+    // Bass is a triangle wave below ~300 Hz (it jumps an octave on the half bar; the lead starts at ~330 Hz).
+    const bassNotes = log => log.filter(e => e.kind === 'osc' && e.type === 'triangle' && e.freq < 300);
+
+    test('music plays during a game, not on the title or game-over screens', () => withFakeAudio(({ play }) => {
+      state = 'title';
+      play(0.5);
+      eq(music.playing, false, 'title: silent');
+      startPlaying(); quietRoad();
+      play(0.5, () => { timeLeft = TIME_LIMIT; });
+      eq(music.playing, true, 'playing');
+      lives = 1; loseLife('time');
+      play(1.5);
+      eq(state, 'gameover');
+      eq(music.playing, false, 'game over: stopped');
+    }));
+
+    test('muting, or switching music off, stops it', () => withFakeAudio(({ play }) => {
+      startPlaying(); quietRoad();
+      play(0.3, () => { timeLeft = TIME_LIMIT; });
+      sound.muted = true;
+      play(0.1, () => { timeLeft = TIME_LIMIT; });
+      eq(music.playing, false, 'muted');
+      sound.muted = false;
+      play(0.1, () => { timeLeft = TIME_LIMIT; });
+      eq(music.playing, true, 'back on');
+      setSetting('musicOn', false);
+      play(0.1, () => { timeLeft = TIME_LIMIT; });
+      eq(music.playing, false, 'music switched off');
+    }));
+
+    test('tempo: a bit faster each level, and much faster when time runs low', () => {
+      startPlaying(); timeLeft = TIME_LIMIT;
+      const l1 = musicTempo();
+      level = 8;
+      const l8 = musicTempo();
+      timeLeft = 5;
+      const urgent = musicTempo();
+      assert(l8 > l1, `level 8 (${l8}) faster than level 1 (${l1})`);
+      near(urgent, l8 * 1.3, 0.01, 'last seconds');
+    });
+
+    test('notes are scheduled at the tempo, ahead of time and in order', () => withFakeAudio(({ play, log }) => {
+      startPlaying(); quietRoad();
+      play(4, () => { timeLeft = TIME_LIMIT; });
+      const expectedSteps = 4 * musicTempo() * 4 / 60;          // sixteenth notes in 4 s
+      near(music.step, expectedSteps, expectedSteps * 0.08, 'steps scheduled');
+      const times = log.filter(e => e.kind === 'osc').map(e => e.t);
+      assert(times.every((t, i) => i === 0 || t >= times[i - 1] - 1e-9), 'in time order');
+      const bars = music.step / 16;
+      assert(bassNotes(log).length >= Math.floor(bars) * BASS_STEPS.size, `bass is playing (${bassNotes(log).length})`);
+      assert(log.some(e => e.kind === 'noise'), 'drums are playing');
+    }));
+
+    test('boss levels use the darker progression; night uses a softer lead', () => withFakeAudio(({ play, log }) => {
+      startPlaying({ lvl: 5 }); quietRoad();
+      play(3, () => { timeLeft = TIME_LIMIT; });
+      const bossRoots = PROGRESSIONS.boss.bass.map(m => Math.round(MIDI(m)));
+      assert(bassNotes(log).some(e => bossRoots.includes(Math.round(e.freq))), 'boss bass line');
+      log.length = 0;
+      startPlaying({ lvl: 3 }); quietRoad();                 // a night level
+      play(2, () => { timeLeft = TIME_LIMIT; });
+      const lead = log.filter(e => e.kind === 'osc' && e.freq > 300);
+      assert(lead.length > 0 && lead.every(e => e.type === 'triangle'), 'soft triangle lead at night');
+    }));
+
+    test('the music volume setting is applied and saved', () => withFakeAudio(({ play }) => {
+      startPlaying(); quietRoad();
+      play(0.2, () => { timeLeft = TIME_LIMIT; });
+      setSetting('musicVolume', 0.25);
+      near(music.bus.gain.value, MUSIC_LEVEL * 0.25, 1e-6);
+      eq(JSON.parse(localStorage.getItem('roadCrossingSettings')).musicVolume, 0.25);
+    }));
+  });
+
+  // ================================================================
   describe('First-time tips', () => {
     test('the move tip shows at the start and goes away once the player walks', () => {
       seenTips = new Set();

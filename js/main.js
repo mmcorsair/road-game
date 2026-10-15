@@ -28,6 +28,7 @@ function frame(now) {
   }
   draw();
   drawSkinPreviews(now);
+  musicTick();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
