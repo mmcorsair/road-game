@@ -1,18 +1,28 @@
 // ---------- Lanes & vehicles ----------
-function pickGap() {
-  const base = Math.max(120, 250 - level * 15) * bossGapMul();
+import { G } from './store.js';
+import { ACCEL, BIKE_LEVEL, BRAKE, CAR_COLORS, EMERGENCY_MAX, EMERGENCY_MIN, EMERGENCY_WARN, FINISH_H, LANES_PER_SIDE, LANE_H, MEDIAN_H, MEDIAN_Y, MIN_WARNING, RAIN_BRAKE, RAIN_GRIP_GUESS, REVERSE_MAX, REVERSE_MIN, STOPPED_V, W, pickFrom, rand, shuffled } from './config.js';
+import { sfx } from './sound.js';
+import { makeRailLane, railLaneCount, updateRail } from './rail.js';
+import { busDue, setupBusStop, stopCap, updateBus } from './bus.js';
+import { bossFor, bossGapMul, bossSpeedMul, makeFloat, nextParadeGap, setupBoss, specialLane, updateRoller } from './boss.js';
+import { animateLaneChange, updateLaneChanges } from './lanechange.js';
+import { brakeDecel, followDist, setupWeatherScene, updateSkid, weatherFor } from './weather.js';
+import { seedRandomness } from './daily.js';
+
+export function pickGap() {
+  const base = Math.max(120, 250 - G.level * 15) * bossGapMul();
   return rand(base, base * 2.2);
 }
 
-function pickKind() {
-  const r = gameRandom();
-  if (level >= BIKE_LEVEL && r < 0.15) return 'bike';
+export function pickKind() {
+  const r = G.gameRandom();
+  if (G.level >= BIKE_LEVEL && r < 0.15) return 'bike';
   if (r > 0.8) return 'truck';
   return 'car';
 }
 
 // Vehicle sizes and speeds (speed is relative to the lane's base speed).
-const VEHICLES = {
+export const VEHICLES = {
   car:       () => ({ w: rand(54, 70), h: 28, speed: rand(0.85, 1.15) }),
   truck:     () => ({ w: rand(95, 125), h: 34, speed: 0.8 }),
   bike:      () => ({ w: 30, h: 14, speed: 1.6 }),
@@ -21,7 +31,7 @@ const VEHICLES = {
   emergency: () => ({ w: 74, h: 30, speed: 2.2 }),
 };
 
-function spawnVehicle(lane, kind) {
+export function spawnVehicle(lane, kind) {
   const spec = VEHICLES[kind]();
   const speed = kind === 'emergency' ? Math.max(260, lane.speed * spec.speed) : lane.speed * spec.speed;
   const c = {
@@ -41,33 +51,33 @@ function spawnVehicle(lane, kind) {
   return c;
 }
 
-function buildLanes() {
+export function buildLanes() {
   silenceSiren();
   seedRandomness();                // the daily challenge makes every level's traffic the same for everyone
-  weather = weatherFor(level);
+  G.weather = weatherFor(G.level);
   setupWeatherScene();
-  boss = bossFor(level);
-  lanes = [];
-  emergencyTimer = rand(EMERGENCY_MIN, EMERGENCY_MAX) / 2;
-  const speedMul = (1 + 0.18 * (level - 1)) * bossSpeedMul();
+  G.boss = bossFor(G.level);
+  G.lanes = [];
+  G.emergencyTimer = rand(EMERGENCY_MIN, EMERGENCY_MAX) / 2;
+  const speedMul = (1 + 0.18 * (G.level - 1)) * bossSpeedMul();
   for (let i = 0; i < LANES_PER_SIDE * 2; i++) {
     const top = i < LANES_PER_SIDE;
     const y = top
       ? FINISH_H + i * LANE_H + LANE_H / 2
       : MEDIAN_Y + MEDIAN_H + (i - LANES_PER_SIDE) * LANE_H + LANE_H / 2;
     // Right-hand traffic seen from above: upper half drives left, lower half drives right.
-    lanes.push({ index: i, y, dir: top ? -1 : 1, speed: rand(70, 150) * speedMul, cars: [], nextGap: pickGap(),
+    G.lanes.push({ index: i, y, dir: top ? -1 : 1, speed: rand(70, 150) * speedMul, cars: [], nextGap: pickGap(),
                  reversible: false, switchTimer: 0, draining: false, drainTime: 0, emergency: null, rail: null });
   }
   // A few random lanes periodically reverse direction; more of them on higher levels.
   // Railway lanes (from RAIL_LEVEL) are picked first, so a lane is never both.
   // Boss levels skip all of that: the boss is the star.
-  if (boss) {
+  if (G.boss) {
     setupBoss();
   } else {
-    const reversibleCount = Math.min(1 + Math.floor((level - 1) / 2), 4);
+    const reversibleCount = Math.min(1 + Math.floor((G.level - 1) / 2), 4);
     const railCount = railLaneCount();
-    const order = shuffled(lanes);
+    const order = shuffled(G.lanes);
     order.slice(0, railCount).forEach(makeRailLane);
     for (const lane of order.slice(railCount, railCount + reversibleCount)) {
       lane.reversible = true;
@@ -76,13 +86,13 @@ function buildLanes() {
     setupBusStop();                // a bus stop on even levels
   }
   // Pre-simulate so the road is already full of traffic (lane by lane, so no lane changes).
-  presimulating = true;
-  for (const lane of lanes) for (let t = 0; t < 30; t += 0.05) updateLane(lane, 0.05);
-  presimulating = false;
+  G.presimulating = true;
+  for (const lane of G.lanes) for (let t = 0; t < 30; t += 0.05) updateLane(lane, 0.05);
+  G.presimulating = false;
 }
 
 // Moves vehicles front to back; each one keeps its own speed but brakes behind a slower vehicle.
-function moveVehicles(lane, dt) {
+export function moveVehicles(lane, dt) {
   for (let i = 0; i < lane.cars.length; i++) {
     const c = lane.cars[i], ahead = lane.cars[i - 1];   // cars[] is ordered front to back: index 0 is in front
     if (c.kind === 'roller') { updateRoller(c, lane, dt); continue; }   // roadworks boss
@@ -98,7 +108,7 @@ function moveVehicles(lane, dt) {
       // late and slide. Fast motorbikes and ambulances, which close in much quicker, ride carefully.
       // Brake lights ahead (e.g. a queue forming behind a stopped bus) make every driver careful too.
       const careful = c.kind === 'bike' || c.kind === 'emergency' || ahead.braking || ahead.v < STOPPED_V;
-      const grip = weather.rain ? RAIN_BRAKE * (careful ? 1 : RAIN_GRIP_GUESS) : BRAKE;
+      const grip = G.weather.rain ? RAIN_BRAKE * (careful ? 1 : RAIN_GRIP_GUESS) : BRAKE;
       // (√(v_ahead² + 2·grip·gap): you can still stop even if the vehicle ahead brakes as hard as it can.)
       target = Math.min(target, Math.sqrt(ahead.v * ahead.v + 2 * grip * Math.max(0, gap - 4)));
     }
@@ -116,11 +126,11 @@ function moveVehicles(lane, dt) {
   lane.cars = lane.cars.filter(c => c.x + c.w / 2 > -150 && c.x - c.w / 2 < W + 150);
 }
 
-function updateLane(lane, dt) {
+export function updateLane(lane, dt) {
   moveVehicles(lane, dt);
   if (lane.rail) { updateRail(lane, dt); return; }
   if (lane.closed) return;         // roadworks: no traffic in a closed lane
-  if (!presimulating) updateLaneChanges(lane, dt);
+  if (!G.presimulating) updateLaneChanges(lane, dt);
 
   // Reversible lanes: stop letting cars in, wait until the lane is empty, then flip direction.
   if (lane.reversible) {
@@ -129,7 +139,7 @@ function updateLane(lane, dt) {
       if (lane.switchTimer <= 0) {
         lane.draining = true;
         lane.drainTime = 0;
-        if (state === 'playing') sfx.warn();
+        if (G.state === 'playing') sfx.warn();
       }
     } else {
       lane.drainTime += dt;
@@ -180,21 +190,21 @@ function updateLane(lane, dt) {
 }
 
 // Advances all traffic.
-function updateTraffic(dt) {
-  for (const lane of lanes) updateLane(lane, dt);
+export function updateTraffic(dt) {
+  for (const lane of G.lanes) updateLane(lane, dt);
 }
 
-function dispatchEmergency() {
-  emergencyTimer = rand(EMERGENCY_MIN, EMERGENCY_MAX);
-  const candidates = lanes.filter(l => !l.reversible && !l.emergency && !l.rail && !specialLane(l));
+export function dispatchEmergency() {
+  G.emergencyTimer = rand(EMERGENCY_MIN, EMERGENCY_MAX);
+  const candidates = G.lanes.filter(l => !l.reversible && !l.emergency && !l.rail && !specialLane(l));
   if (!candidates.length) return;
   const lane = pickFrom(candidates);
   lane.emergency = { t: EMERGENCY_WARN };
   const crossTime = (W + 150) / Math.max(260, lane.speed * 2.2);
-  stopSiren = sfx.siren(EMERGENCY_WARN + crossTime + 0.5, -lane.dir);
+  G.stopSiren = sfx.siren(EMERGENCY_WARN + crossTime + 0.5, -lane.dir);
 }
 
-function silenceSiren() {
-  stopSiren();
-  stopSiren = () => {};
+export function silenceSiren() {
+  G.stopSiren();
+  G.stopSiren = () => {};
 }

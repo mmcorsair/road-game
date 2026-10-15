@@ -1,14 +1,27 @@
 // ---------- Canvas setup ----------
 // The canvas is drawn at the screen's pixel density, capped at 2× (3× phones would draw 2.25× more
 // pixels for a barely visible difference). Lite mode drops it to 1× on devices that can't keep up.
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-const dpr = window.devicePixelRatio || 1;
-let renderScale = 0;
-let liteMode = false;
+import { G } from './store.js';
+import { BIKE_LEVEL, COUNTDOWN_STEP, EMERGENCY_LEVEL, FINISH_H, H, LANES_PER_SIDE, LANE_H, LEVELUP_TIME, MAX_RENDER_SCALE, MEDIAN_H, MEDIAN_Y, RAIL_LEVEL, START_H, TIME_LIMIT, W } from './config.js';
+import { drawParticles, shakeOffset } from './effects.js';
+import { drawRailTracks, drawTrain } from './rail.js';
+import { drawBus, drawBusHazards, drawBusStop } from './bus.js';
+import { BOSS_NAMES, bossFor, drawBossRoad, drawFloat, drawRoller } from './boss.js';
+import { drawTurnSignals, vehicleY } from './lanechange.js';
+import { drawNight, drawRain, drawWetRoad, setupWeatherScene, skidYaw, weatherHint } from './weather.js';
+import { drawMagnetField, drawPickups, drawPowerUpStatus, drawShield } from './pickups.js';
+import { currentSkin, drawBanner } from './skins.js';
+import { loadDailyStats, updateShareButton } from './daily.js';
+import { drawTip } from './tutorial.js';
 
-function setRenderScale(scale) {
-  renderScale = scale;
+export const canvas = document.getElementById('game');
+export const ctx = canvas.getContext('2d');
+export const dpr = window.devicePixelRatio || 1;
+G.renderScale = 0;
+G.liteMode = false;
+
+export function setRenderScale(scale) {
+  G.renderScale = scale;
   canvas.width = W * scale;
   canvas.height = H * scale;
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
@@ -16,23 +29,23 @@ function setRenderScale(scale) {
 setRenderScale(Math.min(dpr, MAX_RENDER_SCALE));
 
 // Switches to lite mode: 1× resolution and fewer rain particles. Called by the frame-rate watchdog.
-function enterLiteMode() {
-  if (liteMode) return;
-  liteMode = true;
+export function enterLiteMode() {
+  if (G.liteMode) return;
+  G.liteMode = true;
   setRenderScale(1);
-  raindrops.length = Math.min(raindrops.length, 60);
+  G.raindrops.length = Math.min(G.raindrops.length, 60);
   console.info('Road Crossing: lite mode');
 }
 
-function exitLiteMode() {
-  if (!liteMode) return;
-  liteMode = false;
+export function exitLiteMode() {
+  if (!G.liteMode) return;
+  G.liteMode = false;
   setRenderScale(Math.min(dpr, MAX_RENDER_SCALE));
   setupWeatherScene();                         // full rain again
 }
 
 // ---------- Drawing ----------
-function drawScene() {
+export function drawScene() {
   // Finish zone (grass + checkered line)
   ctx.fillStyle = '#3c8d40';
   ctx.fillRect(0, 0, W, FINISH_H);
@@ -86,8 +99,8 @@ function drawScene() {
 // Reversible lanes get an amber tint and painted arrows showing the traffic direction.
 // While a lane is about to reverse, the arrows blink amber and point the new way.
 // warningsOnly: just the blinking warning arrows (redrawn on top of the darkness at night).
-function drawReversibleLanes(now, warningsOnly = false) {
-  for (const lane of lanes) {
+export function drawReversibleLanes(now, warningsOnly = false) {
+  for (const lane of G.lanes) {
     if (!lane.reversible) continue;
     if (warningsOnly && !lane.draining) continue;
     if (!warningsOnly) {
@@ -124,7 +137,7 @@ function drawReversibleLanes(now, warningsOnly = false) {
   }
 }
 
-function drawCar(c, y, dir, now) {
+export function drawCar(c, y, dir, now) {
   if (c.kind === 'train') { drawTrain(c, y, dir); return; }
   const { w, h } = c;
   ctx.save();
@@ -212,8 +225,8 @@ function drawCar(c, y, dir, now) {
 }
 
 // Flashing red/blue warning at the edge where an announced emergency vehicle will enter.
-function drawEmergencyWarnings(now) {
-  for (const lane of lanes) {
+export function drawEmergencyWarnings(now) {
+  for (const lane of G.lanes) {
     if (!lane.emergency) continue;
     const red = Math.floor(now / 150) % 2;
     const x = lane.dir > 0 ? 16 : W - 16;
@@ -230,63 +243,63 @@ function drawEmergencyWarnings(now) {
   }
 }
 
-function drawPlayer() {
-  const crashed = state === 'hit' && hitReason === 'car';
+export function drawPlayer() {
+  const crashed = G.state === 'hit' && G.hitReason === 'car';
 
   // Happy hops while celebrating a completed level.
   let hop = 0;
-  if (state === 'levelup') {
-    const t = LEVELUP_TIME - stateTimer;
+  if (G.state === 'levelup') {
+    const t = LEVELUP_TIME - G.stateTimer;
     hop = Math.abs(Math.sin(t * 9)) * 8 * Math.max(0, 1 - t / 1.5);
   }
 
   ctx.fillStyle = 'rgba(0,0,0,.25)';                         // shadow stays on the ground
   ctx.beginPath();
-  ctx.ellipse(player.x + 2, player.y + 3, 12 - hop / 3, 8 - hop / 4, 0, 0, Math.PI * 2);
+  ctx.ellipse(G.player.x + 2, G.player.y + 3, 12 - hop / 3, 8 - hop / 4, 0, 0, Math.PI * 2);
   ctx.fill();
 
   const now = performance.now();
   ctx.save();
-  if (invulnTimer > 0 && Math.floor(now / 80) % 2) ctx.globalAlpha = 0.35;   // blink while protected
-  if (ghostTimer > 0) {                                      // ghost: see-through, bluish, gently wobbling
+  if (G.invulnTimer > 0 && Math.floor(now / 80) % 2) ctx.globalAlpha = 0.35;   // blink while protected
+  if (G.ghostTimer > 0) {                                      // ghost: see-through, bluish, gently wobbling
     ctx.globalAlpha = 0.45 + 0.1 * Math.sin(now / 120);
     ctx.filter = 'sepia(1) hue-rotate(190deg) saturate(3)';
   }
-  ctx.translate(player.x, player.y - hop);
-  ctx.rotate(player.shownAngle + (crashed ? player.spin : 0)); // sprite is drawn facing up
+  ctx.translate(G.player.x, G.player.y - hop);
+  ctx.rotate(G.player.shownAngle + (crashed ? G.player.spin : 0)); // sprite is drawn facing up
 
-  currentSkin().draw(ctx, Math.sin(player.walk) * 5, now);
+  currentSkin().draw(ctx, Math.sin(G.player.walk) * 5, now);
   ctx.restore();
-  if (player.shield) drawShield(player.x, player.y - hop, now);
+  if (G.player.shield) drawShield(G.player.x, G.player.y - hop, now);
 
   if (crashed) {
-    ctx.fillStyle = `rgba(255,60,60,${stateTimer / 2})`;
-    ctx.beginPath(); ctx.arc(player.x, player.y, 30, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(255,60,60,${G.stateTimer / 2})`;
+    ctx.beginPath(); ctx.arc(G.player.x, G.player.y, 30, 0, Math.PI * 2); ctx.fill();
   }
 }
 
 // Countdown bar along the bottom of the sidewalk; blinks during the last 5 seconds.
-function drawTimer(now) {
-  const frac = Math.max(0, timeLeft / TIME_LIMIT);
+export function drawTimer(now) {
+  const frac = Math.max(0, G.timeLeft / TIME_LIMIT);
   const x = 10, y = H - 12, w = W - 20, h = 6;
   ctx.fillStyle = 'rgba(0,0,0,.3)';
   ctx.beginPath(); ctx.roundRect(x, y, w, h, 3); ctx.fill();
-  if (timeLeft <= 5 && state === 'playing' && Math.floor(now / 200) % 2) return;
+  if (G.timeLeft <= 5 && G.state === 'playing' && Math.floor(now / 200) % 2) return;
   ctx.fillStyle = frac > 0.5 ? '#2ecc71' : frac > 0.2 ? '#f4b400' : '#e74c3c';
   ctx.beginPath(); ctx.roundRect(x, y, w * frac, h, 3); ctx.fill();
   ctx.fillStyle = '#fff';
   ctx.font = 'bold 13px system-ui, sans-serif';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'bottom';
-  ctx.fillText(`⏱ ${Math.max(0, Math.ceil(timeLeft))}`, W - 10, y - 2);
+  ctx.fillText(`⏱ ${Math.max(0, Math.ceil(G.timeLeft))}`, W - 10, y - 2);
 }
 
-function drawPopups() {
+export function drawPopups() {
   ctx.font = 'bold 16px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineWidth = 3;
-  for (const p of popups) {
+  for (const p of G.popups) {
     const age = 1 - p.t;
     const scale = 1 + 0.6 * Math.max(0, 1 - age * 6);       // pops in large, settles quickly
     ctx.save();
@@ -302,9 +315,9 @@ function drawPopups() {
 }
 
 // Red/blue light thrown onto the road around emergency vehicles.
-function drawEmergencyGlow(now) {
+export function drawEmergencyGlow(now) {
   const red = Math.floor(now / 120) % 2;
-  for (const lane of lanes) {
+  for (const lane of G.lanes) {
     for (const c of lane.cars) {
       if (c.kind !== 'emergency') continue;
       const g = ctx.createRadialGradient(c.x, lane.y, 5, c.x, lane.y, 70);
@@ -317,17 +330,17 @@ function drawEmergencyGlow(now) {
 }
 
 // Big 3-2-1 numbers that zoom in, then "GO!".
-const countdownLabel = () => (boss ? `👑 BOSS: ${BOSS_NAMES[boss]}` : `Level ${level}`);
+export const countdownLabel = () => (G.boss ? `👑 BOSS: ${BOSS_NAMES[G.boss]}` : `Level ${G.level}`);
 
-function drawCountdown() {
+export function drawCountdown() {
   let text, t, color;
-  if (state === 'countdown') {
-    const n = Math.ceil(stateTimer / COUNTDOWN_STEP);
-    t = 1 - (stateTimer - (n - 1) * COUNTDOWN_STEP) / COUNTDOWN_STEP;   // 0 → 1 within each number
+  if (G.state === 'countdown') {
+    const n = Math.ceil(G.stateTimer / COUNTDOWN_STEP);
+    t = 1 - (G.stateTimer - (n - 1) * COUNTDOWN_STEP) / COUNTDOWN_STEP;   // 0 → 1 within each number
     text = String(n);
     color = '#ffffff';
-  } else if (goTimer > 0) {
-    t = 1 - goTimer / 0.7;
+  } else if (G.goTimer > 0) {
+    t = 1 - G.goTimer / 0.7;
     text = 'GO!';
     color = '#2ecc71';
   } else {
@@ -346,7 +359,7 @@ function drawCountdown() {
   ctx.strokeText(text, 0, 0);
   ctx.fillStyle = color;
   ctx.fillText(text, 0, 0);
-  if (state === 'countdown') {
+  if (G.state === 'countdown') {
     ctx.font = 'bold 20px system-ui, sans-serif';
     ctx.lineWidth = 4;
     ctx.strokeText(countdownLabel(), 0, -62);
@@ -356,7 +369,7 @@ function drawCountdown() {
   ctx.restore();
 }
 
-function overlay(title, ...lines) {
+export function overlay(title, ...lines) {
   const boxH = 90 + lines.length * 24;
   ctx.fillStyle = 'rgba(0,0,0,.6)';
   ctx.fillRect(0, H / 2 - boxH / 2, W, boxH);
@@ -370,18 +383,18 @@ function overlay(title, ...lines) {
   lines.forEach((line, i) => ctx.fillText(line, W / 2, top + 42 + i * 24));
 }
 
-const touchUI = () => document.body.classList.contains('touch');
+export const touchUI = () => document.body.classList.contains('touch');
 
-function nextLevelHint() {
-  const next = bossFor(level + 1);
+export function nextLevelHint() {
+  const next = bossFor(G.level + 1);
   if (next) return `👑 Next: BOSS LEVEL — ${BOSS_NAMES[next]}!`;
-  if (level + 1 === BIKE_LEVEL) return 'Next: fast motorbikes, and buses that stop!';
-  if (level + 1 === RAIL_LEVEL) return 'Next: a railway crossing — mind the lights!';
-  if (level + 1 === EMERGENCY_LEVEL) return 'Next: listen for sirens — emergency vehicles!';
+  if (G.level + 1 === BIKE_LEVEL) return 'Next: fast motorbikes, and buses that stop!';
+  if (G.level + 1 === RAIL_LEVEL) return 'Next: a railway crossing — mind the lights!';
+  if (G.level + 1 === EMERGENCY_LEVEL) return 'Next: listen for sirens — emergency vehicles!';
   return 'Faster traffic, more reversing lanes…';
 }
 
-function draw() {
+export function draw() {
   const now = performance.now();
   const [sx, sy] = shakeOffset();
   ctx.fillStyle = '#1d2330';                 // backdrop revealed at the edges while shaking
@@ -397,50 +410,50 @@ function draw() {
   drawParticles(true);                       // exhaust, spray and splashes, beneath the vehicles
   drawEmergencyGlow(now);
   drawPickups(now);                          // lying on the road; vehicles drive over them
-  for (const lane of lanes) for (const c of lane.cars) drawCar(c, vehicleY(c, lane), lane.dir, now);
+  for (const lane of G.lanes) for (const c of lane.cars) drawCar(c, vehicleY(c, lane), lane.dir, now);
   drawEmergencyWarnings(now);
-  if (state !== 'title') { drawMagnetField(now); drawPlayer(); }
+  if (G.state !== 'title') { drawMagnetField(now); drawPlayer(); }
   drawNight(now);                            // darkness with headlights and lamps (night levels)
   drawRain();
-  if (state !== 'title') {
+  if (G.state !== 'title') {
     drawPowerUpStatus();
     drawTimer(now);
   }
   drawPopups();
   ctx.restore();
 
-  if (state === 'title') {
+  if (G.state === 'title') {
     const today = loadDailyStats();
     overlay('Road Crossing', 'Cross before the clock runs out', 'Grab bonuses: coins ⏱ 🛡 🐢 ❤️ 👟 🧲 👻',
       `Skin: ${currentSkin().name}  ·  change it in the ☰ menu`,
       today.best ? `📅 Today's daily best: ${today.best.score.toLocaleString()}` : '📅 New daily challenge every day!',
       touchUI() ? 'Tap the road to play  ·  📅 — daily challenge' : 'Space — play  ·  C / 📅 — daily challenge');
-  } else if (state === 'paused') {
+  } else if (G.state === 'paused') {
     overlay('Paused', 'Press P to continue');
-  } else if (state === 'levelup') {
-    overlay(`Level ${level} complete!`,
-      `+${levelBonus.levelPoints} level  ·  +${levelBonus.timePoints} time` +
-        (levelBonus.bossPoints ? `  ·  👑 +${levelBonus.bossPoints} boss` : ' bonus'), nextLevelHint(),
-      ...(weatherHint(level + 1) ? [weatherHint(level + 1)] : []));
-  } else if (state === 'gameover') {
+  } else if (G.state === 'levelup') {
+    overlay(`Level ${G.level} complete!`,
+      `+${G.levelBonus.levelPoints} level  ·  +${G.levelBonus.timePoints} time` +
+        (G.levelBonus.bossPoints ? `  ·  👑 +${G.levelBonus.bossPoints} boss` : ' bonus'), nextLevelHint(),
+      ...(weatherHint(G.level + 1) ? [weatherHint(G.level + 1)] : []));
+  } else if (G.state === 'gameover') {
     const unlockedLine = [
-      ...(skinsUnlockedThisGame.length ? [`👕 Unlocked: ${skinsUnlockedThisGame.join(', ')} — try it on!`] : []),
-      ...(gameAch.earned.length ? [gameAch.earned.length <= 2 ? `🏆 New: ${gameAch.earned.join(', ')}`
-                                                             : `🏆 ${gameAch.earned.length} new achievements!`] : []),
+      ...(G.skinsUnlockedThisGame.length ? [`👕 Unlocked: ${G.skinsUnlockedThisGame.join(', ')} — try it on!`] : []),
+      ...(G.gameAch.earned.length ? [G.gameAch.earned.length <= 2 ? `🏆 New: ${G.gameAch.earned.join(', ')}`
+                                                             : `🏆 ${G.gameAch.earned.length} new achievements!`] : []),
     ];
-    if (mode === 'daily' && dailyStats) {
-      const best = dailyStats.best;
-      overlay('Daily challenge over', `Score ${score.toLocaleString()}  ·  level ${level}`,
-        best.score === score ? `📅 Today's best! (try ${dailyStats.attempts})`
-                             : `📅 Today's best: ${best.score.toLocaleString()} (try ${dailyStats.attempts})`,
+    if (G.mode === 'daily' && G.dailyStats) {
+      const best = G.dailyStats.best;
+      overlay('Daily challenge over', `Score ${G.score.toLocaleString()}  ·  level ${G.level}`,
+        best.score === G.score ? `📅 Today's best! (try ${G.dailyStats.attempts})`
+                             : `📅 Today's best: ${best.score.toLocaleString()} (try ${G.dailyStats.attempts})`,
         ...unlockedLine, touchUI() ? '📅 — retry  ·  tap the road — normal game' : 'R — share  ·  C — retry  ·  Space — normal game');
     } else {
-      overlay('Game Over', `Score ${score}  ·  level ${level}`,
-        newHighScore ? '🏆 New high score!' : `High score ${hiScore}`, ...unlockedLine,
+      overlay('Game Over', `Score ${G.score}  ·  level ${G.level}`,
+        G.newHighScore ? '🏆 New high score!' : `High score ${G.hiScore}`, ...unlockedLine,
         touchUI() ? 'Tap to play again  ·  📅 — daily challenge' : 'Space — play again  ·  C — daily challenge');
     }
-  } else if (state === 'hit' && lives > 0) {
-    overlay(hitReason === 'time' ? "Time's up!" : 'Ouch!', `${lives} ${lives === 1 ? 'life' : 'lives'} left`);
+  } else if (G.state === 'hit' && G.lives > 0) {
+    overlay(G.hitReason === 'time' ? "Time's up!" : 'Ouch!', `${G.lives} ${G.lives === 1 ? 'life' : 'lives'} left`);
   }
   drawBanner();
   drawCountdown();

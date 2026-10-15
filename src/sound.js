@@ -1,12 +1,16 @@
 // ---------- Sound (synthesized with Web Audio, no files needed) ----------
-const sound = {
+import { G } from './store.js';
+import { EMERGENCY_WARN } from './config.js';
+import { updateHud } from './game.js';
+
+export const sound = {
   ctx: null, master: null, noise: null,
   muted: (() => { try { return localStorage.getItem('roadCrossingMuted') === '1'; } catch { return false; } })(),
 
   // Browsers only allow audio to start after a user gesture, so this is called from input handlers.
   init() {
     if (this.ctx) {
-      if (this.ctx.state === 'suspended' && state !== 'paused') this.ctx.resume();
+      if (this.ctx.state === 'suspended' && G.state !== 'paused') this.ctx.resume();
       return;
     }
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -24,7 +28,7 @@ const sound = {
   ready() { return this.ctx && !this.muted; },
 
   applyVolume() {                       // master level from the mute switch and the volume setting
-    if (this.master) this.master.gain.value = this.muted ? 0 : 0.6 * settings.volume;
+    if (this.master) this.master.gain.value = this.muted ? 0 : 0.6 * G.settings.volume;
   },
 
   toggleMute() {
@@ -46,7 +50,7 @@ const sound = {
   },
 };
 
-function tone(freq, dur, { type = 'square', gain = 0.2, endFreq = freq, delay = 0, hold = 0, pan = 0 } = {}) {
+export function tone(freq, dur, { type = 'square', gain = 0.2, endFreq = freq, delay = 0, hold = 0, pan = 0 } = {}) {
   if (!sound.ready()) return;
   const ac = sound.ctx, t = ac.currentTime + delay;
   const osc = ac.createOscillator(), g = ac.createGain();
@@ -62,7 +66,7 @@ function tone(freq, dur, { type = 'square', gain = 0.2, endFreq = freq, delay = 
   osc.stop(t + dur + 0.02);
 }
 
-function noiseBurst(dur, { gain = 0.3, freq = 1000, endFreq = freq, delay = 0 } = {}) {
+export function noiseBurst(dur, { gain = 0.3, freq = 1000, endFreq = freq, delay = 0 } = {}) {
   if (!sound.ready()) return;
   const ac = sound.ctx, t = ac.currentTime + delay;
   const src = ac.createBufferSource(), filter = ac.createBiquadFilter(), g = ac.createGain();
@@ -79,7 +83,7 @@ function noiseBurst(dur, { gain = 0.3, freq = 1000, endFreq = freq, delay = 0 } 
   src.stop(t + dur + 0.02);
 }
 
-const sfx = {
+export const sfx = {
   step()  { noiseBurst(0.05, { gain: 0.12, freq: 900 }); },
   start() {
     tone(660, 0.12, { type: 'triangle', gain: 0.2 });

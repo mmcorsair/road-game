@@ -1,5 +1,29 @@
 // Road Crossing test suite. Open tests.html in a browser; results show on the page, in the console,
 // in the tab title (✅/❌) and as <body data-result="pass|fail">, for headless runs.
+import '../src/index.js';                  // the whole game, loaded exactly as on the real page
+import { G } from '../src/store.js';
+import { BOOTS_SPEED, BOOTS_TIME, BOSS_BONUS, COIN_POINTS, COUNTDOWN_STEP, EMERGENCY_LEVEL, EMERGENCY_WARN, FINISH_H, GHOST_TIME, H, LANES_PER_SIDE, LANE_H, LEVELUP_TIME, LEVEL_POINTS, MAGNET_RADIUS, MAX_LIVES, MAX_RENDER_SCALE, MEDIAN_H, MEDIAN_Y, MIN_WARNING, PARADE_GAP_MIN, PARADE_SPEED, PLAYER_SIZE, PLAYER_SPEED, PROGRESS_POINTS, RAIL_LEVEL, RAIN_BRAKE, RUBBLE_SPEED, SHIELD_GRACE, SLOW_FACTOR, SLOW_TIME, START_H, START_LIVES, TIME_LIMIT, TIME_PICKUP, TRAIN_WARN, W } from '../src/config.js';
+import { DEFAULT_SETTINGS, setSetting } from '../src/settings.js';
+import { keys, saveHiScore } from '../src/state.js';
+import { sound } from '../src/sound.js';
+import { BASS_STEPS, MIDI, MUSIC_LEVEL, PROGRESSIONS, music, musicTempo, musicTick, stopMusic } from '../src/music.js';
+import { fx, reduceMotion } from '../src/effects.js';
+import { buildLanes } from '../src/traffic.js';
+import { bossFor } from '../src/boss.js';
+import { LANE_CHANGERS, laneHooks, moveToLane } from '../src/lanechange.js';
+import { weatherFor } from '../src/weather.js';
+import { hitsCar } from '../src/player.js';
+import { PICKUP_TYPES, resetPickups } from '../src/pickups.js';
+import { SKINS, chooseSkin, closeSkinPicker, currentSkin, isUnlocked, openSkinPicker, skinPickerOpen } from '../src/skins.js';
+import { dailyShareText, hashString, seedRandomness, seededRandom, startDailyFromUI, todayKey } from '../src/daily.js';
+import { TIPS, TIP_SLOWMO, TIP_TIME, replayTips, tipTimeScale } from '../src/tutorial.js';
+import { ACHIEVEMENTS, achievementCount, hasAchievement, unlockAchievement } from '../src/achievements.js';
+import { closeMenu, menuOpen, openMenu } from '../src/menu.js';
+import { addScore, loseLife, newGame, startAttempt, startCountdown, update } from '../src/game.js';
+import { canvas, ctx, dpr, draw, setRenderScale } from '../src/render.js';
+import { buttons, drag, keyboard, releaseKeys, setPaused, syncKeys } from '../src/input.js';
+import { watchFrameRate } from '../src/main.js';
+
 (() => {
   // ---------- Tiny test runner ----------
   const tests = [];
@@ -36,50 +60,50 @@
   // Empty road: no traffic, no pickups, no hazards scheduled. (nextGap = NaN: "room >= NaN" is always
   // false, so nothing spawns — an empty lane has Infinity room, which even a huge gap wouldn't stop.)
   function quietRoad() {
-    for (const l of lanes) {
+    for (const l of G.lanes) {
       Object.assign(l, { cars: [], nextGap: NaN, reversible: false, draining: false, emergency: null, rail: null,
                          busStop: null });
     }
-    pickups = [];
-    pickupTimer = 1e9;
-    emergencyTimer = 1e9;
+    G.pickups = [];
+    G.pickupTimer = 1e9;
+    G.emergencyTimer = 1e9;
   }
 
   // A game in the 'playing' state at the given level (countdown skipped).
   function startPlaying({ lvl = 1, daily = false } = {}) {
     newGame(daily ? 'daily' : 'normal');
     if (lvl !== 1) {
-      level = lvl;
+      G.level = lvl;
       buildLanes();
       resetPickups();
       startAttempt();
     }
-    state = 'playing';
-    goTimer = 0;
+    G.state = 'playing';
+    G.goTimer = 0;
   }
 
-  const onSidewalk = () => { player.y = H - START_H / 2; player.x = W / 2; timeLeft = TIME_LIMIT; };
+  const onSidewalk = () => { G.player.y = H - START_H / 2; G.player.x = W / 2; G.timeLeft = TIME_LIMIT; };
 
   function resetWorld() {
     releaseKeys();
     closeSkinPicker();
-    mode = 'normal';
-    hiScore = 0;
-    score = 0;
-    skinId = 'classic';
-    banner = null;
-    particles = [];
-    popups = [];
-    achievements = { unlocked: {}, bonusKinds: [], bosses: [] };
-    toastQueue = [];
-    settings = { ...DEFAULT_SETTINGS };      // the player's own settings must not affect results
+    G.mode = 'normal';
+    G.hiScore = 0;
+    G.score = 0;
+    G.skinId = 'classic';
+    G.banner = null;
+    G.particles = [];
+    G.popups = [];
+    G.achievements = { unlocked: {}, bonusKinds: [], bosses: [] };
+    G.toastQueue = [];
+    G.settings = { ...DEFAULT_SETTINGS };      // the player's own settings must not affect results
     if (menuOpen()) closeMenu(false);
-    seenTips = new Set(Object.keys(TIPS));   // tips off unless a test turns them on
-    activeTip = null;
-    tipQueue = [];
-    tipSlow = 0;
+    G.seenTips = new Set(Object.keys(TIPS));   // tips off unless a test turns them on
+    G.activeTip = null;
+    G.tipQueue = [];
+    G.tipSlow = 0;
     newGame();
-    state = 'title';
+    G.state = 'title';
   }
 
   const plainCar = (x, extra = {}) =>
@@ -87,7 +111,7 @@
 
   // Front-to-back order and no overlaps in every lane.
   function checkTrafficInvariants() {
-    for (const l of lanes) {
+    for (const l of G.lanes) {
       for (let j = 1; j < l.cars.length; j++) {
         const a = l.cars[j - 1], c = l.cars[j];
         assert(a.x * l.dir >= c.x * l.dir, `lane ${l.index}: vehicles out of order`);
@@ -101,45 +125,45 @@
     test('crossing an empty road scores lanes + level + time bonus', () => {
       startPlaying(); quietRoad();
       hold('up');
-      run(10, () => state === 'playing');
-      eq(state, 'levelup');
-      eq(levelProgress, 10, 'lanes crossed');
-      eq(levelBonus.levelPoints, LEVEL_POINTS);
-      eq(score, 10 * PROGRESS_POINTS + levelBonus.levelPoints + levelBonus.timePoints, 'score');
-      assert(levelBonus.timePoints > 0, 'some time bonus');
+      run(10, () => G.state === 'playing');
+      eq(G.state, 'levelup');
+      eq(G.levelProgress, 10, 'lanes crossed');
+      eq(G.levelBonus.levelPoints, LEVEL_POINTS);
+      eq(G.score, 10 * PROGRESS_POINTS + G.levelBonus.levelPoints + G.levelBonus.timePoints, 'score');
+      assert(G.levelBonus.timePoints > 0, 'some time bonus');
     });
 
     test('lane points are not awarded twice in a level', () => {
       startPlaying(); quietRoad();
-      player.y = lanes[7].y - LANE_H;          // past 3 lanes
+      G.player.y = G.lanes[7].y - LANE_H;          // past 3 lanes
       run(0.05);
-      const s = score;
-      player.y = H - START_H / 2;              // back to the sidewalk and up again
+      const s = G.score;
+      G.player.y = H - START_H / 2;              // back to the sidewalk and up again
       run(0.05);
-      player.y = lanes[7].y - LANE_H;
+      G.player.y = G.lanes[7].y - LANE_H;
       run(0.05);
-      eq(score, s);
+      eq(G.score, s);
     });
 
     test('running out of time costs a life, then a fresh attempt with a full clock', () => {
       startPlaying(); quietRoad();
-      timeLeft = 0.3;
+      G.timeLeft = 0.3;
       run(0.4);
-      eq(state, 'hit');
-      eq(hitReason, 'time');
-      eq(lives, START_LIVES - 1);
+      eq(G.state, 'hit');
+      eq(G.hitReason, 'time');
+      eq(G.lives, START_LIVES - 1);
       run(1.3);
-      eq(state, 'playing');
-      assert(timeLeft > TIME_LIMIT - 0.2, 'clock refilled');
+      eq(G.state, 'playing');
+      assert(G.timeLeft > TIME_LIMIT - 0.2, 'clock refilled');
     });
 
     test('losing the last life ends the game and saves the high score', () => {
       startPlaying(); quietRoad();
-      score = 777; lives = 1; timeLeft = 0.01;
+      G.score = 777; G.lives = 1; G.timeLeft = 0.01;
       run(1.5);
-      eq(state, 'gameover');
-      eq(hiScore, 777);
-      eq(newHighScore, true);
+      eq(G.state, 'gameover');
+      eq(G.hiScore, 777);
+      eq(G.newHighScore, true);
     });
   });
 
@@ -147,34 +171,34 @@
   describe('Countdown & pause', () => {
     test('a new game counts down, and the player cannot move until GO', () => {
       newGame();
-      eq(state, 'countdown');
+      eq(G.state, 'countdown');
       hold('up');
-      const y0 = player.y;
+      const y0 = G.player.y;
       run(COUNTDOWN_STEP * 3 - 0.05);
-      eq(state, 'countdown');
-      eq(player.y, y0, 'player stayed put');
+      eq(G.state, 'countdown');
+      eq(G.player.y, y0, 'player stayed put');
       run(0.1);
-      eq(state, 'playing');
+      eq(G.state, 'playing');
     });
 
     test('pausing during the countdown resumes the countdown', () => {
       newGame();
       run(0.5);
       setPaused(true);
-      const t = stateTimer;
+      const t = G.stateTimer;
       run(3);
-      eq(state, 'paused');
-      eq(stateTimer, t, 'countdown frozen');
+      eq(G.state, 'paused');
+      eq(G.stateTimer, t, 'countdown frozen');
       setPaused(false);
-      eq(state, 'countdown');
+      eq(G.state, 'countdown');
     });
 
     test('P pauses and resumes a game', () => {
       startPlaying();
       dispatchEvent(new KeyboardEvent('keydown', { key: 'p' }));
-      eq(state, 'paused');
+      eq(G.state, 'paused');
       dispatchEvent(new KeyboardEvent('keydown', { key: 'p' }));
-      eq(state, 'playing');
+      eq(G.state, 'playing');
     });
   });
 
@@ -184,16 +208,16 @@
       startPlaying(); quietRoad();
       hold('right');
       run(4);
-      eq(player.x, W - PLAYER_SIZE / 2);
-      near(player.shownAngle, Math.PI / 2, 0.05, 'facing');
+      eq(G.player.x, W - PLAYER_SIZE / 2);
+      near(G.player.shownAngle, Math.PI / 2, 0.05, 'facing');
     });
 
     test('diagonal movement is not faster than straight movement', () => {
       startPlaying(); quietRoad();
-      const x0 = player.x, y0 = player.y;
+      const x0 = G.player.x, y0 = G.player.y;
       hold('up'); hold('left');
       run(0.5);
-      const moved = Math.hypot(player.x - x0, player.y - y0);
+      const moved = Math.hypot(G.player.x - x0, G.player.y - y0);
       near(moved, PLAYER_SPEED * 0.5, 2, 'distance');
     });
 
@@ -209,11 +233,11 @@
 
     test('arrow-key events move the player', () => {
       startPlaying(); quietRoad();
-      const y0 = player.y;
+      const y0 = G.player.y;
       dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
       run(0.3);
       dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowUp' }));
-      assert(player.y < y0 - 30, 'moved up');
+      assert(G.player.y < y0 - 30, 'moved up');
       assert(!keys.up, 'released');
     });
   });
@@ -229,7 +253,7 @@
 
     test('vehicles brake behind slower ones', () => {
       startPlaying(); quietRoad();
-      const L = lanes[6];
+      const L = G.lanes[6];
       L.cars = [plainCar(300, { speed: 40, v: 40 }), plainCar(200, { speed: 200, v: 200 })];
       run(2, onSidewalk);
       const [slow, fast] = L.cars;
@@ -239,7 +263,7 @@
 
     test('a reversible lane warns, empties, then flips direction', () => {
       startPlaying({ lvl: 3 });
-      const L = lanes.find(l => l.reversible);
+      const L = G.lanes.find(l => l.reversible);
       assert(L, 'level 3 has a reversible lane');
       const dir0 = L.dir;
       L.draining = false;                      // traffic was pre-simulated: start from a known state
@@ -267,9 +291,9 @@
     test('emergency vehicles are announced first and never use rail or reversible lanes', () => {
       startPlaying({ lvl: EMERGENCY_LEVEL });
       for (let n = 0; n < 5; n++) {
-        emergencyTimer = 0.001;
+        G.emergencyTimer = 0.001;
         run(0.02, onSidewalk);
-        const L = lanes.find(l => l.emergency);
+        const L = G.lanes.find(l => l.emergency);
         assert(L, 'a lane was announced');
         assert(!L.rail && !L.reversible, 'ordinary lane');
         // It's fast, so watch for it arriving rather than looking afterwards; ignore an earlier one
@@ -291,16 +315,16 @@
   describe('Railway', () => {
     test('number of railway lanes per level', () => {
       for (const [lvl, n] of [[1, 0], [2, 0], [RAIL_LEVEL, 1], [RAIL_LEVEL + 3, 1], [RAIL_LEVEL + 4, 2]]) {
-        level = lvl;
+        G.level = lvl;
         buildLanes();
-        eq(lanes.filter(l => l.rail).length, n, `level ${lvl}`);
-        assert(!lanes.some(l => l.rail && l.reversible), 'rail lane is never reversible');
+        eq(G.lanes.filter(l => l.rail).length, n, `level ${lvl}`);
+        assert(!G.lanes.some(l => l.rail && l.reversible), 'rail lane is never reversible');
       }
     });
 
     test('a train always comes after the full warning, and only trains use the tracks', () => {
       startPlaying({ lvl: RAIL_LEVEL });
-      const R = lanes.find(l => l.rail);
+      const R = G.lanes.find(l => l.rail);
       let trains = 0, warnTime = null, last = R.rail.phase;   // null until we've seen a warning start
       run(40, () => {
         onSidewalk();
@@ -320,25 +344,23 @@
 
     test('standing on the tracks when a train arrives costs a life', () => {
       startPlaying({ lvl: RAIL_LEVEL });
-      const R = lanes.find(l => l.rail);
-      for (const l of lanes) if (l !== R) l.cars = [];
+      const R = G.lanes.find(l => l.rail);
+      for (const l of G.lanes) if (l !== R) l.cars = [];
       R.cars = [];
       Object.assign(R.rail, { phase: 'warning', timer: 0.01 });
-      player.x = W / 2; player.y = R.y;
-      run(2, () => { timeLeft = TIME_LIMIT; return state === 'playing'; });
-      eq(state, 'hit');
+      G.player.x = W / 2; G.player.y = R.y;
+      run(2, () => { G.timeLeft = TIME_LIMIT; return G.state === 'playing'; });
+      eq(G.state, 'hit');
     });
   });
 
   // ================================================================
   describe('Lane changes', () => {
     test('every lane change is signalled and legal', () => {
-      const original = moveToLane;
       const moves = [];
-      moveToLane = (c, from, to) => {
+      laneHooks.onMove = (c, from, to) => {
         moves.push({ kind: c.kind, signalled: !!c.signal && c.signal.t <= 0, from, to,
                      fromDir: from.dir, toDir: to.dir });
-        return original(c, from, to);
       };
       try {
         for (const lvl of [4, 7]) {
@@ -346,7 +368,7 @@
           run(60, onSidewalk);
         }
       } finally {
-        moveToLane = original;
+        laneHooks.onMove = null;
       }
       assert(moves.length >= 10, `only ${moves.length} lane changes in 2 minutes`);
       for (const m of moves) {
@@ -361,14 +383,14 @@
 
     test('a vehicle changing lanes hits the player where it actually is', () => {
       startPlaying(); quietRoad();
-      const A = lanes[6], B = lanes[7];
+      const A = G.lanes[6], B = G.lanes[7];
       const car = plainCar(W / 2, { speed: 20, v: 20 });   // moving (slowly): stopped vehicles only block
       B.cars.push(car);
       moveToLane(car, B, A);                    // starts at B's height, gliding up into A
-      player.x = W / 2; player.y = A.y;
+      G.player.x = W / 2; G.player.y = A.y;
       eq(hitsCar(), null, 'not yet in the lane');
-      run(1, () => { timeLeft = TIME_LIMIT; return state === 'playing'; });
-      eq(state, 'hit');
+      run(1, () => { G.timeLeft = TIME_LIMIT; return G.state === 'playing'; });
+      eq(G.state, 'hit');
     });
 
     test('motorbikes signal briefly, swerve quickly and squeeze into smaller gaps', () => {
@@ -380,19 +402,18 @@
     });
 
     test('motorbikes weave: they change lanes far more often than cars', () => {
-      const original = moveToLane;
       const changes = { car: 0, bike: 0 }, onRoad = { car: 0, bike: 0 };   // lane changes per vehicle-second
-      moveToLane = (c, from, to) => { if (c.kind in changes) changes[c.kind]++; return original(c, from, to); };
+      laneHooks.onMove = (c, from, to) => { if (c.kind in changes) changes[c.kind]++; };
       try {
         for (const lvl of [4, 6]) {
           startPlaying({ lvl });
           run(60, () => {
             onSidewalk();
-            for (const l of lanes) for (const c of l.cars) if (c.kind in onRoad && c.x > 0 && c.x < W) onRoad[c.kind] += DT;
+            for (const l of G.lanes) for (const c of l.cars) if (c.kind in onRoad && c.x > 0 && c.x < W) onRoad[c.kind] += DT;
           });
         }
       } finally {
-        moveToLane = original;
+        laneHooks.onMove = null;
       }
       const rate = k => changes[k] / onRoad[k];
       assert(onRoad.bike > 20, `enough motorbikes seen (${onRoad.bike.toFixed(0)} s)`);
@@ -401,20 +422,19 @@
     });
 
     test('trucks do change lanes — less often than cars, but regularly', () => {
-      const original = moveToLane;
       const changes = { car: 0, truck: 0 }, onRoad = { car: 0, truck: 0 };
-      moveToLane = (c, from, to) => { if (c.kind in changes) changes[c.kind]++; return original(c, from, to); };
+      laneHooks.onMove = (c, from, to) => { if (c.kind in changes) changes[c.kind]++; };
       try {
         // Trucks are rare, so this needs several minutes of traffic (average is ~0.7 per minute).
         for (const lvl of [3, 4, 5, 6, 7, 8]) {
           startPlaying({ lvl });
           run(60, () => {
             onSidewalk();
-            for (const l of lanes) for (const c of l.cars) if (c.kind in onRoad && c.x > 0 && c.x < W) onRoad[c.kind] += DT;
+            for (const l of G.lanes) for (const c of l.cars) if (c.kind in onRoad && c.x > 0 && c.x < W) onRoad[c.kind] += DT;
           });
         }
       } finally {
-        moveToLane = original;
+        laneHooks.onMove = null;
       }
       const perMin = k => changes[k] / onRoad[k] * 60;
       assert(perMin('truck') > 0.2, `trucks: ${perMin('truck').toFixed(2)} lane changes per minute on screen`);
@@ -431,71 +451,71 @@
   // ================================================================
   describe('Pickups', () => {
     const collect = type => {
-      pickups = [{ type, x: player.x, y: player.y, t: 5, age: 1 }];
+      G.pickups = [{ type, x: G.player.x, y: G.player.y, t: 5, age: 1 }];
       run(DT);
     };
 
     test('coin, clock, life, slow and shield do what they say', () => {
       startPlaying(); quietRoad();
-      let s = score; collect('coin'); eq(score - s, COIN_POINTS, 'coin');
-      timeLeft = 5; collect('time'); near(timeLeft, 5 + TIME_PICKUP, 0.05, 'clock');
-      lives = 3; collect('life'); eq(lives, 4, 'life');
-      lives = MAX_LIVES; collect('life'); eq(lives, MAX_LIVES, 'life is capped');
-      collect('slow'); near(slowTimer, SLOW_TIME, 0.05, 'slow');
-      collect('shield'); eq(player.shield, true, 'shield');
-      eq(pickups.length, 0, 'collected pickups disappear');
+      let s = G.score; collect('coin'); eq(G.score - s, COIN_POINTS, 'coin');
+      G.timeLeft = 5; collect('time'); near(G.timeLeft, 5 + TIME_PICKUP, 0.05, 'clock');
+      G.lives = 3; collect('life'); eq(G.lives, 4, 'life');
+      G.lives = MAX_LIVES; collect('life'); eq(G.lives, MAX_LIVES, 'life is capped');
+      collect('slow'); near(G.slowTimer, SLOW_TIME, 0.05, 'slow');
+      collect('shield'); eq(G.player.shield, true, 'shield');
+      eq(G.pickups.length, 0, 'collected pickups disappear');
     });
 
     test('speed boots make the player faster for a while', () => {
       startPlaying(); quietRoad();
       collect('boots');
-      const y0 = player.y;
+      const y0 = G.player.y;
       hold('up');
       run(1);
-      near(y0 - player.y, PLAYER_SPEED * BOOTS_SPEED, 3, 'distance in 1 s with boots');
+      near(y0 - G.player.y, PLAYER_SPEED * BOOTS_SPEED, 3, 'distance in 1 s with boots');
       hold('up', false);
-      run(BOOTS_TIME, () => { timeLeft = TIME_LIMIT; });    // boots wear off while standing still
-      eq(bootsTimer, 0);
-      player.y = H - START_H / 2;
-      const y1 = player.y;
+      run(BOOTS_TIME, () => { G.timeLeft = TIME_LIMIT; });    // boots wear off while standing still
+      eq(G.bootsTimer, 0);
+      G.player.y = H - START_H / 2;
+      const y1 = G.player.y;
       hold('up');
       run(0.5);
-      near(y1 - player.y, PLAYER_SPEED * 0.5, 3, 'normal speed again');
+      near(y1 - G.player.y, PLAYER_SPEED * 0.5, 3, 'normal speed again');
     });
 
     test('the magnet pulls nearby coins in — only coins, only nearby', () => {
       startPlaying(); quietRoad();
       collect('magnet');
-      const near1 = { type: 'coin', x: player.x + 100, y: player.y, t: 8, age: 1 };
-      const far = { type: 'coin', x: player.x, y: player.y - MAGNET_RADIUS - 60, t: 8, age: 1 };
-      const clock = { type: 'time', x: player.x - 80, y: player.y, t: 8, age: 1 };
-      pickups = [near1, far, clock];
-      const s0 = score;
-      run(1, () => { timeLeft = 20; });
-      eq(score - s0, COIN_POINTS, 'the nearby coin was pulled in and collected');
-      assert(pickups.includes(far) && far.y === player.y - MAGNET_RADIUS - 60, 'far coin untouched');
-      assert(pickups.includes(clock) && clock.x === player.x - 80, 'other pickups are not pulled');
+      const near1 = { type: 'coin', x: G.player.x + 100, y: G.player.y, t: 8, age: 1 };
+      const far = { type: 'coin', x: G.player.x, y: G.player.y - MAGNET_RADIUS - 60, t: 8, age: 1 };
+      const clock = { type: 'time', x: G.player.x - 80, y: G.player.y, t: 8, age: 1 };
+      G.pickups = [near1, far, clock];
+      const s0 = G.score;
+      run(1, () => { G.timeLeft = 20; });
+      eq(G.score - s0, COIN_POINTS, 'the nearby coin was pulled in and collected');
+      assert(G.pickups.includes(far) && far.y === G.player.y - MAGNET_RADIUS - 60, 'far coin untouched');
+      assert(G.pickups.includes(clock) && clock.x === G.player.x - 80, 'other pickups are not pulled');
     });
 
     test('as a ghost, vehicles pass through you; afterwards they hit again', () => {
       startPlaying(); quietRoad();
       collect('ghost');
-      const L = lanes[7];
-      player.y = L.y;
-      L.cars = [plainCar(player.x - L.dir * 80, { speed: 200, v: 200 })];
-      run(1, () => { timeLeft = TIME_LIMIT; });
-      eq(state, 'playing', 'the car went straight through');
-      run(GHOST_TIME, () => { timeLeft = TIME_LIMIT; });
-      L.cars = [plainCar(player.x - L.dir * 80, { speed: 200, v: 200 })];
-      run(1, () => { timeLeft = TIME_LIMIT; return state === 'playing'; });
-      eq(state, 'hit', 'solid again');
+      const L = G.lanes[7];
+      G.player.y = L.y;
+      L.cars = [plainCar(G.player.x - L.dir * 80, { speed: 200, v: 200 })];
+      run(1, () => { G.timeLeft = TIME_LIMIT; });
+      eq(G.state, 'playing', 'the car went straight through');
+      run(GHOST_TIME, () => { G.timeLeft = TIME_LIMIT; });
+      L.cars = [plainCar(G.player.x - L.dir * 80, { speed: 200, v: 200 })];
+      run(1, () => { G.timeLeft = TIME_LIMIT; return G.state === 'playing'; });
+      eq(G.state, 'hit', 'solid again');
     });
 
     test('power-ups end when a new attempt starts', () => {
       startPlaying(); quietRoad();
       for (const kind of ['boots', 'magnet', 'ghost', 'slow']) collect(kind);
       loseLife('time'); run(1.5);
-      eq(bootsTimer + magnetTimer + ghostTimer + slowTimer, 0);
+      eq(G.bootsTimer + G.magnetTimer + G.ghostTimer + G.slowTimer, 0);
     });
 
     test('every power-up draws without errors', () => {
@@ -507,41 +527,41 @@
 
     test('slow traffic moves vehicles at SLOW_FACTOR speed', () => {
       startPlaying(); quietRoad();
-      const L = lanes[2];
+      const L = G.lanes[2];
       L.cars = [plainCar(W / 2, { speed: 100, v: 100 })];
-      slowTimer = 3;
+      G.slowTimer = 3;
       const x0 = L.cars[0].x;
-      run(1, () => { timeLeft = TIME_LIMIT; });
+      run(1, () => { G.timeLeft = TIME_LIMIT; });
       near(Math.abs(L.cars[0].x - x0), 100 * SLOW_FACTOR, 1);
     });
 
     test('a shield absorbs one hit, gives a grace period, then the next hit counts', () => {
       startPlaying(); quietRoad();
-      player.shield = true;
-      const L = lanes[7];
-      player.x = W / 2; player.y = L.y;
+      G.player.shield = true;
+      const L = G.lanes[7];
+      G.player.x = W / 2; G.player.y = L.y;
       L.cars = [plainCar(W / 2 - L.dir * 10, { speed: 20, v: 20 })];   // creeping into the player
       run(DT);
-      eq(state, 'playing', 'survived');
-      eq(player.shield, false, 'shield used up');
-      eq(lives, START_LIVES);
-      run(SHIELD_GRACE - 0.1, () => { timeLeft = TIME_LIMIT; });
-      eq(state, 'playing', 'safe during grace');
-      run(0.3, () => { timeLeft = TIME_LIMIT; return state === 'playing'; });
-      eq(state, 'hit', 'hit after grace');
+      eq(G.state, 'playing', 'survived');
+      eq(G.player.shield, false, 'shield used up');
+      eq(G.lives, START_LIVES);
+      run(SHIELD_GRACE - 0.1, () => { G.timeLeft = TIME_LIMIT; });
+      eq(G.state, 'playing', 'safe during grace');
+      run(0.3, () => { G.timeLeft = TIME_LIMIT; return G.state === 'playing'; });
+      eq(G.state, 'hit', 'hit after grace');
     });
 
     test('at most two pickups on the road; a new level clears them', () => {
       startPlaying(); quietRoad();
-      pickupTimer = 0;
+      G.pickupTimer = 0;
       let most = 0;
-      run(30, () => { onSidewalk(); most = Math.max(most, pickups.length); });
+      run(30, () => { onSidewalk(); most = Math.max(most, G.pickups.length); });
       assert(most >= 1 && most <= 2, `max on road: ${most}`);
-      player.y = FINISH_H - 20;
+      G.player.y = FINISH_H - 20;
       run(DT);
-      eq(state, 'levelup');
+      eq(G.state, 'levelup');
       run(LEVELUP_TIME + 0.1);
-      eq(pickups.length, 0);
+      eq(G.pickups.length, 0);
     });
   });
 
@@ -549,24 +569,24 @@
   describe('Skins', () => {
     test('skins unlock at their scores, with one announcement each', () => {
       startPlaying(); quietRoad();
-      hiScore = 0;
+      G.hiScore = 0;
       eq(SKINS.filter(isUnlocked).length, 1, 'only Classic at first');
       addScore(510, 0, 0);
-      eq(skinsUnlockedThisGame.join(), 'Kid');
-      assert(banner && banner.text.includes('Kid'), 'banner');
+      eq(G.skinsUnlockedThisGame.join(), 'Kid');
+      assert(G.banner && G.banner.text.includes('Kid'), 'banner');
       addScore(600, 0, 0);
-      eq(skinsUnlockedThisGame.join(), 'Kid,Dog');
+      eq(G.skinsUnlockedThisGame.join(), 'Kid,Dog');
       // next game: thresholds below the saved high score are not announced again
-      hiScore = score; newGame(); state = 'playing';
+      G.hiScore = G.score; newGame(); G.state = 'playing';
       addScore(1200, 0, 0);
-      eq(skinsUnlockedThisGame.length, 0);
+      eq(G.skinsUnlockedThisGame.length, 0);
     });
 
     test('a locked skin cannot be worn', () => {
-      hiScore = 0; score = 0;
-      skinId = 'ninja';
+      G.hiScore = 0; G.score = 0;
+      G.skinId = 'ninja';
       eq(currentSkin().id, 'classic');
-      hiScore = 1000;
+      G.hiScore = 1000;
       chooseSkin('dog');
       eq(currentSkin().id, 'dog');
     });
@@ -575,9 +595,9 @@
       startPlaying();
       dispatchEvent(new KeyboardEvent('keydown', { key: 'k' }));
       assert(skinPickerOpen(), 'open');
-      eq(state, 'paused');
+      eq(G.state, 'paused');
       dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
-      eq(state, 'paused', 'Space ignored while open');
+      eq(G.state, 'paused', 'Space ignored while open');
       dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
       assert(!skinPickerOpen(), 'closed');
     });
@@ -593,8 +613,8 @@
     // Snapshot of all traffic after `seconds` of a daily game at `lvl`.
     function dailyTraffic(lvl, seconds, each = onSidewalk) {
       startPlaying({ lvl, daily: true });
-      run(seconds, i => { each(i); timeLeft = TIME_LIMIT; if (state !== 'playing') state = 'playing'; });
-      return JSON.stringify(lanes.map(l => [l.dir, l.rail && l.rail.phase, l.reversible,
+      run(seconds, i => { each(i); G.timeLeft = TIME_LIMIT; if (G.state !== 'playing') G.state = 'playing'; });
+      return JSON.stringify(G.lanes.map(l => [l.dir, l.rail && l.rail.phase, l.reversible,
         l.cars.map(c => [c.kind, Math.round(c.x * 10), Math.round((c.dy || 0) * 10), c.color])]));
     }
 
@@ -605,8 +625,8 @@
     test('what the player does never changes the traffic', () => {
       const still = dailyTraffic(5, 30);
       const wandering = dailyTraffic(5, 30, i => {     // walks along the median, collecting pickups
-        player.y = MEDIAN_Y + MEDIAN_H / 2;
-        player.x = 40 + (i % 800) * 0.5;
+        G.player.y = MEDIAN_Y + MEDIAN_H / 2;
+        G.player.x = 40 + (i % 800) * 0.5;
       });
       eq(wandering, still);
     });
@@ -614,27 +634,29 @@
     test('different levels and different days give different traffic', () => {
       const base = dailyTraffic(5, 20);
       assert(dailyTraffic(6, 20) !== base, 'levels differ');
-      const realTodayKey = todayKey;
-      todayKey = () => '2030-01-01';
-      try { assert(dailyTraffic(5, 20) !== base, 'days differ'); } finally { todayKey = realTodayKey; }
+      G.todayOverride = '2030-01-01';
+      try { assert(dailyTraffic(5, 20) !== base, 'days differ'); } finally { G.todayOverride = null; }
     });
 
     test('normal games stay random', () => {
       newGame();
-      originalSeedRandomness();                // the suite itself seeds every test (see runAll)
-      eq(gameRandom, Math.random);
-      eq(pickupRandom, Math.random);
+      const seed = G.testSeed;                 // the suite itself seeds every test (see runAll)
+      G.testSeed = null;
+      seedRandomness();
+      G.testSeed = seed;
+      eq(G.gameRandom, Math.random);
+      eq(G.pickupRandom, Math.random);
     });
 
     test('game over records the result and builds the share text', () => {
       localStorage.removeItem('roadCrossingDaily');
       startPlaying({ daily: true });
       quietRoad();
-      score = 1234; level = 3; dailyRow = ['🟩', '🟩']; lives = 1; timeLeft = 0.01;
+      G.score = 1234; G.level = 3; G.dailyRow = ['🟩', '🟩']; G.lives = 1; G.timeLeft = 0.01;
       run(1.5);
-      eq(state, 'gameover');
-      eq(dailyStats.attempts, 1);
-      eq(dailyStats.best.score, 1234);
+      eq(G.state, 'gameover');
+      eq(G.dailyStats.attempts, 1);
+      eq(G.dailyStats.best.score, 1234);
       const text = dailyShareText();
       assert(/^Road Crossing 📅 \d{4}-\d{2}-\d{2}\nLevel 3 · 1,234 pts \(1 try\)\n🟩🟩💥/.test(text), text);
     });
@@ -642,8 +664,8 @@
     test('a daily game cannot be started over a game in progress', () => {
       startPlaying();
       startDailyFromUI();
-      eq(mode, 'normal');
-      eq(state, 'playing');
+      eq(G.mode, 'normal');
+      eq(G.state, 'playing');
     });
   });
 
@@ -651,14 +673,14 @@
   describe('Bus', () => {
     test('bus stops on even levels from 2', () => {
       for (const lvl of [1, 2, 3, 4, 5, 6]) {
-        level = lvl; buildLanes();
-        eq(lanes.some(l => l.busStop), lvl % 2 === 0, `bus stop on level ${lvl}`);
+        G.level = lvl; buildLanes();
+        eq(G.lanes.some(l => l.busStop), lvl % 2 === 0, `bus stop on level ${lvl}`);
       }
     });
 
     test('a bus stops at its stop, lets passengers off, then drives on', () => {
       startPlaying({ lvl: 2 });
-      const L = lanes.find(l => l.busStop);
+      const L = G.lanes.find(l => l.busStop);
       let dwellStart = null, left = false, t = 0, walkers = 0, wasDwelling = true;
       run(60, () => {
         onSidewalk(); t += DT;
@@ -670,7 +692,7 @@
           dwellStart = t;
           near(bus.x, L.busStop.x, 4, 'stopped at the stop');
         }
-        walkers = Math.max(walkers, particles.filter(p => p.kind === 'walker').length);
+        walkers = Math.max(walkers, G.particles.filter(p => p.kind === 'walker').length);
         if (dwellStart !== null && bus && !bus.dwell && bus.stopAt == null) { left = true; return false; }
       });
       assert(dwellStart !== null, 'a bus stopped');
@@ -680,13 +702,13 @@
 
     test('a stopped bus blocks the player but does not hurt', () => {
       startPlaying({ lvl: 2 }); quietRoad();
-      const L = lanes[7];
+      const L = G.lanes[7];
       L.cars = [{ kind: 'bus', w: 120, h: 34, speed: 0, v: 0, x: W / 2, color: '#f39c12' }];
-      player.x = W / 2; player.y = L.y + 40;
+      G.player.x = W / 2; G.player.y = L.y + 40;
       hold('up');
-      run(1, () => { timeLeft = TIME_LIMIT; });
-      eq(state, 'playing', 'not hit');
-      assert(player.y > L.y + 17, `stayed outside the bus (y ${player.y.toFixed(0)})`);
+      run(1, () => { G.timeLeft = TIME_LIMIT; });
+      eq(G.state, 'playing', 'not hit');
+      assert(G.player.y > L.y + 17, `stayed outside the bus (y ${G.player.y.toFixed(0)})`);
     });
 
     test('buses draw without errors, day and night', () => {
@@ -707,8 +729,8 @@
 
     test('boss levels have no railway, reversible lanes or bus stop', () => {
       for (const lvl of [5, 10, 15, 20]) {
-        level = lvl; buildLanes();
-        assert(!lanes.some(l => l.rail || l.reversible || l.busStop), `level ${lvl}`);
+        G.level = lvl; buildLanes();
+        assert(!G.lanes.some(l => l.rail || l.reversible || l.busStop), `level ${lvl}`);
       }
     });
 
@@ -721,7 +743,7 @@
 
     test('parade: only floats in the parade lanes, slow, with walkable gaps', () => {
       startPlaying({ lvl: 5 });
-      const parade = lanes.filter(l => l.parade);
+      const parade = G.lanes.filter(l => l.parade);
       eq(parade.length, 2, 'two parade lanes');
       let gapsSeen = 0;
       run(60, i => {
@@ -746,7 +768,7 @@
       const avgSpeed = lvl => {
         startPlaying({ lvl });
         let sum = 0, n = 0;
-        run(20, i => { onSidewalk(); if (i % 60 === 0) for (const l of lanes) for (const c of l.cars) if (!l.rail) { sum += c.speed; n++; } });
+        run(20, i => { onSidewalk(); if (i % 60 === 0) for (const l of G.lanes) for (const c of l.cars) if (!l.rail) { sum += c.speed; n++; } });
         return sum / n;
       };
       const before = avgSpeed(9), highway = avgSpeed(10);
@@ -755,7 +777,7 @@
 
     test('roadworks: closed lanes have only the steamroller, which rolls back and forth', () => {
       startPlaying({ lvl: 15 });
-      const closed = lanes.filter(l => l.closed);
+      const closed = G.lanes.filter(l => l.closed);
       eq(closed.length, 4, 'four closed lanes');
       const roller = closed.flatMap(l => l.cars)[0];
       eq(roller && roller.kind, 'roller');
@@ -771,29 +793,29 @@
 
     test('roadworks: rubble slows you down, and the steamroller hits', () => {
       startPlaying({ lvl: 15 });
-      const L = lanes.find(l => l.closed && !l.cars.length);
-      player.x = W / 2; player.y = L.y + 20;
+      const L = G.lanes.find(l => l.closed && !l.cars.length);
+      G.player.x = W / 2; G.player.y = L.y + 20;
       hold('up');
-      run(0.3, () => { timeLeft = TIME_LIMIT; });
-      near(L.y + 20 - player.y, PLAYER_SPEED * RUBBLE_SPEED * 0.3, 2, 'slow in the rubble');
+      run(0.3, () => { G.timeLeft = TIME_LIMIT; });
+      near(L.y + 20 - G.player.y, PLAYER_SPEED * RUBBLE_SPEED * 0.3, 2, 'slow in the rubble');
       hold('up', false);
-      const R = lanes.find(l => l.cars.some(c => c.kind === 'roller'));
+      const R = G.lanes.find(l => l.cars.some(c => c.kind === 'roller'));
       const roller = R.cars[0];
-      player.y = R.y; player.x = roller.x + R.dir * 60;
-      run(3, () => { timeLeft = TIME_LIMIT; return state === 'playing'; });
-      eq(state, 'hit', 'run over by the steamroller');
+      G.player.y = R.y; G.player.x = roller.x + R.dir * 60;
+      run(3, () => { G.timeLeft = TIME_LIMIT; return G.state === 'playing'; });
+      eq(G.state, 'hit', 'run over by the steamroller');
     });
 
     test('a boss level pays double level points plus the boss bonus, and earns achievements', () => {
       const cross = lvl => {
         startPlaying({ lvl }); quietRoad();
         hold('up');
-        run(10, () => state === 'playing');
+        run(10, () => G.state === 'playing');
         hold('up', false);
       };
       cross(5);
-      eq(levelBonus.levelPoints, LEVEL_POINTS * 5 * 2, 'double level points');
-      eq(levelBonus.bossPoints, BOSS_BONUS, 'boss bonus');
+      eq(G.levelBonus.levelPoints, LEVEL_POINTS * 5 * 2, 'double level points');
+      eq(G.levelBonus.bossPoints, BOSS_BONUS, 'boss bonus');
       assert(hasAchievement('boss') && !hasAchievement('tour'), 'boss buster');
       cross(10); cross(15);
       assert(hasAchievement('tour'), 'grand tour');
@@ -803,7 +825,7 @@
       for (const lvl of [5, 10, 15, 20, 25, 30]) {   // covers each boss in several weathers
         startPlaying({ lvl });
         run(5, onSidewalk);
-        newGame(); level = lvl; buildLanes(); startCountdown(); draw();   // the countdown label
+        newGame(); G.level = lvl; buildLanes(); startCountdown(); draw();   // the countdown label
         startPlaying({ lvl });
         run(2, onSidewalk);
         draw();
@@ -821,7 +843,7 @@
     // A fast car approaching a stopped one; returns how far it travelled while braking, and its state.
     function brakeTest(lvl) {
       startPlaying({ lvl }); quietRoad();
-      const L = lanes[6];
+      const L = G.lanes[6];
       const stopped = plainCar(400), fast = plainCar(400 - L.dir * 260, { speed: 220, v: 220 });
       L.cars = [stopped, fast];
       let maxDecel = 0, maxSkid = 0, brakingFrom = null, prevV = fast.v;
@@ -847,9 +869,9 @@
     });
 
     test('skidding in the rain leaves skid marks', () => {
-      skidMarks = [];
+      G.skidMarks = [];
       brakeTest(2);
-      assert(skidMarks.length > 0, 'skid marks drawn');
+      assert(G.skidMarks.length > 0, 'skid marks drawn');
     });
 
     for (const lvl of [5, 6, 7]) {
@@ -861,13 +883,13 @@
 
     test('at night, headlights light the road ahead of a vehicle', () => {
       startPlaying({ lvl: 3 }); quietRoad();
-      eq(weather.night, true);
-      const L = lanes[2];                         // drives left (dir -1)
+      eq(G.weather.night, true);
+      const L = G.lanes[2];                         // drives left (dir -1)
       L.cars = [plainCar(300, { speed: 0.001, v: 0.001 })];
-      player.x = W - 30; player.y = H - START_H / 2;
+      G.player.x = W - 30; G.player.y = H - START_H / 2;
       draw();
       const brightness = (x, y) => {
-        const [r, g, b] = ctx.getImageData(Math.round(x * renderScale), Math.round(y * renderScale), 1, 1).data;
+        const [r, g, b] = ctx.getImageData(Math.round(x * G.renderScale), Math.round(y * G.renderScale), 1, 1).data;
         return (r + g + b) / 3;
       };
       const inBeam = brightness(300 - 30 - 60, L.y);   // 60 px in front of the car
@@ -889,25 +911,25 @@
     // Walk straight to the finish on an empty road; returns once the level is complete.
     function crossLevel() {
       quietRoad();
-      player.x = W / 2;
-      player.y = H - START_H / 2;              // (leaves the clock alone)
+      G.player.x = W / 2;
+      G.player.y = H - START_H / 2;              // (leaves the clock alone)
       hold('up');
-      run(10, () => state === 'playing');
+      run(10, () => G.state === 'playing');
       hold('up', false);
-      eq(state, 'levelup');
+      eq(G.state, 'levelup');
     }
 
     test('completing level 1 quickly and without stopping earns three achievements', () => {
       startPlaying();
       crossLevel();
       for (const id of ['first', 'nonstop', 'speedy']) assert(hasAchievement(id), id);
-      eq(gameAch.earned.length, 3);
+      eq(G.gameAch.earned.length, 3);
     });
 
     test('stopping on the way, or finishing slowly, does not count', () => {
       startPlaying(); quietRoad();
       run(1, onSidewalk);                        // standing still for a second
-      timeLeft = 15;
+      G.timeLeft = 15;
       crossLevel();
       assert(hasAchievement('first'), 'first');
       assert(!hasAchievement('nonstop'), 'stopped');
@@ -946,7 +968,7 @@
 
     test('5 coins in a game, and every kind of bonus across games', () => {
       startPlaying(); quietRoad();
-      const grab = type => { pickups = [{ type, x: player.x, y: player.y, t: 5, age: 1 }]; run(DT); };
+      const grab = type => { G.pickups = [{ type, x: G.player.x, y: G.player.y, t: 5, age: 1 }]; run(DT); };
       for (let i = 0; i < 4; i++) grab('coin');
       assert(!hasAchievement('coins'), '4 coins');
       grab('coin');
@@ -960,41 +982,41 @@
 
     test('a shield taking a hit', () => {
       startPlaying(); quietRoad();
-      player.shield = true;
-      player.y = lanes[7].y;
-      lanes[7].cars = [plainCar(player.x, { speed: 20, v: 20 })];
+      G.player.shield = true;
+      G.player.y = G.lanes[7].y;
+      G.lanes[7].cars = [plainCar(G.player.x, { speed: 20, v: 20 })];
       run(DT);
       assert(hasAchievement('shield'));
     });
 
     test('crossing the tracks while the lights flash — but not if the train gets you', () => {
       startPlaying({ lvl: RAIL_LEVEL });
-      const R = lanes.find(l => l.rail);
-      for (const l of lanes) l.cars = [];
+      const R = G.lanes.find(l => l.rail);
+      for (const l of G.lanes) l.cars = [];
       Object.assign(R.rail, { phase: 'warning', timer: 99 });
-      player.y = R.y;
-      run(0.2, () => { timeLeft = TIME_LIMIT; });
+      G.player.y = R.y;
+      run(0.2, () => { G.timeLeft = TIME_LIMIT; });
       loseLife('time'); run(1.5);                // "hit" on the tracks, back to the sidewalk
       assert(!hasAchievement('train'), 'no credit after losing a life');
-      player.y = R.y;
-      run(0.2, () => { timeLeft = TIME_LIMIT; });
-      player.y = R.y - LANE_H;                   // stepped off the far side
-      run(0.1, () => { timeLeft = TIME_LIMIT; });
+      G.player.y = R.y;
+      run(0.2, () => { G.timeLeft = TIME_LIMIT; });
+      G.player.y = R.y - LANE_H;                   // stepped off the far side
+      run(0.1, () => { G.timeLeft = TIME_LIMIT; });
       assert(hasAchievement('train'), 'beat the train');
     });
 
     test('a daily game, a new skin, saving and one banner per achievement', () => {
       startPlaying({ daily: true }); quietRoad();
-      lives = 1; timeLeft = 0.01;
+      G.lives = 1; G.timeLeft = 0.01;
       run(1.5);
       assert(hasAchievement('daily'), 'daily driver');
-      hiScore = 1000;
+      G.hiScore = 1000;
       chooseSkin('dog');
       assert(hasAchievement('style'), 'new look');
       chooseSkin('kid');
       const saved = JSON.parse(localStorage.getItem('roadCrossingAchievements'));
       assert(saved.unlocked.daily && saved.unlocked.style, 'saved');
-      const banners = [banner, ...toastQueue].filter(b => b && b.text.startsWith('🏆'));
+      const banners = [G.banner, ...G.toastQueue].filter(b => b && b.text.startsWith('🏆'));
       eq(banners.length, 2, 'one banner each, queued');
     });
 
@@ -1011,21 +1033,21 @@
   // ================================================================
   describe('Performance safeguards', () => {
     const normalScale = () => Math.min(dpr, MAX_RENDER_SCALE);
-    const restore = () => { liteMode = false; slowTime = 0; setRenderScale(normalScale()); };
+    const restore = () => { G.liteMode = false; G.slowTime = 0; setRenderScale(normalScale()); };
 
     test('the canvas is never drawn at more than 2× density', () => {
-      assert(renderScale <= MAX_RENDER_SCALE, `render scale ${renderScale}`);
-      eq(canvas.width, W * renderScale);
+      assert(G.renderScale <= MAX_RENDER_SCALE, `render scale ${G.renderScale}`);
+      eq(canvas.width, W * G.renderScale);
     });
 
     test('a slow frame rate while playing switches to lite mode', () => {
       try {
         startPlaying();
         for (let i = 0; i < 60; i++) watchFrameRate(1 / 60);          // smooth: nothing happens
-        eq(liteMode, false, 'stays normal at 60 fps');
+        eq(G.liteMode, false, 'stays normal at 60 fps');
         for (let i = 0; i < 30 * 4; i++) watchFrameRate(1 / 30);      // 4 s at 30 fps
-        eq(liteMode, true, 'lite mode');
-        eq(renderScale, 1);
+        eq(G.liteMode, true, 'lite mode');
+        eq(G.renderScale, 1);
         eq(canvas.width, W);
         run(1); draw();                                               // still draws fine
       } finally { restore(); }
@@ -1035,9 +1057,9 @@
       try {
         startPlaying();
         for (let i = 0; i < 20; i++) watchFrameRate(2);               // a background tab: huge gaps
-        state = 'paused';
+        G.state = 'paused';
         for (let i = 0; i < 300; i++) watchFrameRate(1 / 20);         // slow, but not playing
-        eq(liteMode, false);
+        eq(G.liteMode, false);
       } finally { restore(); }
     });
   });
@@ -1051,21 +1073,21 @@
       startPlaying();
       key('Escape');
       assert(menuOpen(), 'open');
-      eq(state, 'paused');
+      eq(G.state, 'paused');
       key('p');
-      eq(state, 'paused', 'other keys are ignored while the menu is open');
+      eq(G.state, 'paused', 'other keys are ignored while the menu is open');
       key('Escape');
       assert(!menuOpen(), 'closed');
-      eq(state, 'playing');
+      eq(G.state, 'playing');
     });
 
     test('opening the menu on the title screen does not start or pause anything', () => {
-      state = 'title';
+      G.state = 'title';
       openMenu();
-      eq(state, 'title');
+      eq(G.state, 'title');
       eq(document.getElementById('mResume').hidden, true, 'no Resume without a game');
       closeMenu();
-      eq(state, 'title');
+      eq(G.state, 'title');
     });
 
     test('a daily challenge cannot replace a game in progress, even a paused one', () => {
@@ -1073,54 +1095,54 @@
       openMenu();
       eq(document.getElementById('mDaily').disabled, true, 'button disabled');
       startDailyFromUI();
-      eq(mode, 'normal');
+      eq(G.mode, 'normal');
       closeMenu();
     });
 
     test('Quit to title saves the high score', () => {
       startPlaying();
-      score = 4321;
+      G.score = 4321;
       openMenu();
       click('mQuit');
-      eq(state, 'title');
-      eq(hiScore, 4321);
+      eq(G.state, 'title');
+      eq(G.hiScore, 4321);
       assert(!menuOpen(), 'menu closed');
     });
 
     test('Skins and Achievements open the panel on the right tab', () => {
-      state = 'title';
+      G.state = 'title';
       openMenu(); click('mAch');
       assert(!menuOpen() && skinPickerOpen(), 'panel open');
-      eq(panelTab, 'achievements');
+      eq(G.panelTab, 'achievements');
       closeSkinPicker();
       openMenu(); click('mSkins');
-      eq(panelTab, 'skins');
+      eq(G.panelTab, 'skins');
       closeSkinPicker();
     });
 
     test('screen shake can be turned off', () => {
       setSetting('shake', false);
-      shakeTime = 0;
+      G.shakeTime = 0;
       fx.crash(100, 100, 1, '#f00');
-      eq(shakeTime, 0, 'no shake');
+      eq(G.shakeTime, 0, 'no shake');
       setSetting('shake', true);
       fx.crash(100, 100, 1, '#f00');
-      assert(reduceMotion || shakeTime > 0, 'shakes again');
+      assert(reduceMotion || G.shakeTime > 0, 'shakes again');
     });
 
     test('graphics: Lite forces lite mode, High leaves it and stops the watchdog', () => {
       const normal = Math.min(dpr, MAX_RENDER_SCALE);
       try {
         setSetting('graphics', 'lite');
-        eq(liteMode, true); eq(renderScale, 1);
+        eq(G.liteMode, true); eq(G.renderScale, 1);
         setSetting('graphics', 'high');
-        eq(liteMode, false); eq(renderScale, normal);
+        eq(G.liteMode, false); eq(G.renderScale, normal);
         startPlaying();
         for (let i = 0; i < 30 * 5; i++) watchFrameRate(1 / 30);
-        eq(liteMode, false, 'High never drops quality');
+        eq(G.liteMode, false, 'High never drops quality');
       } finally {
-        settings = { ...DEFAULT_SETTINGS };
-        liteMode = false; slowTime = 0; setRenderScale(normal);
+        G.settings = { ...DEFAULT_SETTINGS };
+        G.liteMode = false; G.slowTime = 0; setRenderScale(normal);
       }
     });
 
@@ -1136,22 +1158,22 @@
       setSetting('contrast', true);
       startPlaying(); quietRoad();
       const c = plainCar(200);
-      lanes[6].cars = [c];
-      c.signal = { target: lanes[7], side: 1, t: 1 };
+      G.lanes[6].cars = [c];
+      c.signal = { target: G.lanes[7], side: 1, t: 1 };
       draw();
     });
 
     test('Reset needs a second tap, then clears progress but keeps settings', () => {
-      hiScore = 999; saveHiScore();
+      G.hiScore = 999; saveHiScore();
       unlockAchievement('first');
       setSetting('volume', 0.5);
-      state = 'title';
+      G.state = 'title';
       openMenu();
       click('mReset');
-      eq(hiScore, 999, 'first tap only arms it');
+      eq(G.hiScore, 999, 'first tap only arms it');
       click('mReset');
-      eq(hiScore, 0);
-      eq(Object.keys(achievements.unlocked).length, 0, 'achievements cleared');
+      eq(G.hiScore, 0);
+      eq(Object.keys(G.achievements.unlocked).length, 0, 'achievements cleared');
       eq(localStorage.getItem('roadCrossingHiScore'), null, 'saved high score erased');
       eq(JSON.parse(localStorage.getItem('roadCrossingSettings')).volume, 0.5, 'settings kept');
       closeMenu();
@@ -1199,38 +1221,38 @@
     const bassNotes = log => log.filter(e => e.kind === 'osc' && e.type === 'triangle' && e.freq < 300);
 
     test('music plays during a game, not on the title or game-over screens', () => withFakeAudio(({ play }) => {
-      state = 'title';
+      G.state = 'title';
       play(0.5);
       eq(music.playing, false, 'title: silent');
       startPlaying(); quietRoad();
-      play(0.5, () => { timeLeft = TIME_LIMIT; });
+      play(0.5, () => { G.timeLeft = TIME_LIMIT; });
       eq(music.playing, true, 'playing');
-      lives = 1; loseLife('time');
+      G.lives = 1; loseLife('time');
       play(1.5);
-      eq(state, 'gameover');
+      eq(G.state, 'gameover');
       eq(music.playing, false, 'game over: stopped');
     }));
 
     test('muting, or switching music off, stops it', () => withFakeAudio(({ play }) => {
       startPlaying(); quietRoad();
-      play(0.3, () => { timeLeft = TIME_LIMIT; });
+      play(0.3, () => { G.timeLeft = TIME_LIMIT; });
       sound.muted = true;
-      play(0.1, () => { timeLeft = TIME_LIMIT; });
+      play(0.1, () => { G.timeLeft = TIME_LIMIT; });
       eq(music.playing, false, 'muted');
       sound.muted = false;
-      play(0.1, () => { timeLeft = TIME_LIMIT; });
+      play(0.1, () => { G.timeLeft = TIME_LIMIT; });
       eq(music.playing, true, 'back on');
       setSetting('musicOn', false);
-      play(0.1, () => { timeLeft = TIME_LIMIT; });
+      play(0.1, () => { G.timeLeft = TIME_LIMIT; });
       eq(music.playing, false, 'music switched off');
     }));
 
     test('tempo: a bit faster each level, and much faster when time runs low', () => {
-      startPlaying(); timeLeft = TIME_LIMIT;
+      startPlaying(); G.timeLeft = TIME_LIMIT;
       const l1 = musicTempo();
-      level = 8;
+      G.level = 8;
       const l8 = musicTempo();
-      timeLeft = 5;
+      G.timeLeft = 5;
       const urgent = musicTempo();
       assert(l8 > l1, `level 8 (${l8}) faster than level 1 (${l1})`);
       near(urgent, l8 * 1.3, 0.01, 'last seconds');
@@ -1238,7 +1260,7 @@
 
     test('notes are scheduled at the tempo, ahead of time and in order', () => withFakeAudio(({ play, log }) => {
       startPlaying(); quietRoad();
-      play(4, () => { timeLeft = TIME_LIMIT; });
+      play(4, () => { G.timeLeft = TIME_LIMIT; });
       const expectedSteps = 4 * musicTempo() * 4 / 60;          // sixteenth notes in 4 s
       near(music.step, expectedSteps, expectedSteps * 0.08, 'steps scheduled');
       const times = log.filter(e => e.kind === 'osc').map(e => e.t);
@@ -1250,19 +1272,19 @@
 
     test('boss levels use the darker progression; night uses a softer lead', () => withFakeAudio(({ play, log }) => {
       startPlaying({ lvl: 5 }); quietRoad();
-      play(3, () => { timeLeft = TIME_LIMIT; });
+      play(3, () => { G.timeLeft = TIME_LIMIT; });
       const bossRoots = PROGRESSIONS.boss.bass.map(m => Math.round(MIDI(m)));
       assert(bassNotes(log).some(e => bossRoots.includes(Math.round(e.freq))), 'boss bass line');
       log.length = 0;
       startPlaying({ lvl: 3 }); quietRoad();                 // a night level
-      play(2, () => { timeLeft = TIME_LIMIT; });
+      play(2, () => { G.timeLeft = TIME_LIMIT; });
       const lead = log.filter(e => e.kind === 'osc' && e.freq > 300);
       assert(lead.length > 0 && lead.every(e => e.type === 'triangle'), 'soft triangle lead at night');
     }));
 
     test('the music volume setting is applied and saved', () => withFakeAudio(({ play }) => {
       startPlaying(); quietRoad();
-      play(0.2, () => { timeLeft = TIME_LIMIT; });
+      play(0.2, () => { G.timeLeft = TIME_LIMIT; });
       setSetting('musicVolume', 0.25);
       near(music.bus.gain.value, MUSIC_LEVEL * 0.25, 1e-6);
       eq(JSON.parse(localStorage.getItem('roadCrossingSettings')).musicVolume, 0.25);
@@ -1272,64 +1294,64 @@
   // ================================================================
   describe('First-time tips', () => {
     test('the move tip shows at the start and goes away once the player walks', () => {
-      seenTips = new Set();
+      G.seenTips = new Set();
       newGame();
       run(DT);
-      eq(activeTip && activeTip.id, 'move');
+      eq(G.activeTip && G.activeTip.id, 'move');
       run(COUNTDOWN_STEP * 3);
-      eq(activeTip && activeTip.id, 'move', 'still there until the player moves');
+      eq(G.activeTip && G.activeTip.id, 'move', 'still there until the player moves');
       hold('up');
       run(1);
-      assert(!activeTip || activeTip.id !== 'move', 'dismissed after walking');
+      assert(!G.activeTip || G.activeTip.id !== 'move', 'dismissed after walking');
     });
 
     test('each tip shows only once, and is remembered', () => {
-      seenTips = new Set();
+      G.seenTips = new Set();
       startPlaying(); quietRoad();
       run(DT);                                   // move tip
-      activeTip = null;
-      pickups = [{ type: 'coin', x: 100, y: lanes[2].y, t: 5, age: 0 }];
+      G.activeTip = null;
+      G.pickups = [{ type: 'coin', x: 100, y: G.lanes[2].y, t: 5, age: 0 }];
       run(DT);
-      eq(activeTip && activeTip.id, 'pickup');
-      activeTip = null;
-      pickups = [{ type: 'coin', x: 100, y: lanes[2].y, t: 5, age: 0 }];
+      eq(G.activeTip && G.activeTip.id, 'pickup');
+      G.activeTip = null;
+      G.pickups = [{ type: 'coin', x: 100, y: G.lanes[2].y, t: 5, age: 0 }];
       run(DT);
-      eq(activeTip, null, 'not shown twice');
+      eq(G.activeTip, null, 'not shown twice');
       assert(JSON.parse(localStorage.getItem('roadCrossingTips')).includes('pickup'), 'saved');
     });
 
     test('a hazard tip goes first and briefly slows the game', () => {
-      seenTips = new Set(Object.keys(TIPS).filter(id => id !== 'clock' && id !== 'train'));
+      G.seenTips = new Set(Object.keys(TIPS).filter(id => id !== 'clock' && id !== 'train'));
       startPlaying({ lvl: RAIL_LEVEL });
-      timeLeft = TIME_LIMIT - 7;
+      G.timeLeft = TIME_LIMIT - 7;
       run(DT);
-      eq(activeTip && activeTip.id, 'clock');
+      eq(G.activeTip && G.activeTip.id, 'clock');
       eq(tipTimeScale(0), 1, 'no slow motion for an ordinary tip');
-      const R = lanes.find(l => l.rail);
+      const R = G.lanes.find(l => l.rail);
       Object.assign(R.rail, { phase: 'warning', timer: 2 });
       run(DT);
-      eq(activeTip.id, 'train', 'hazard tip took over');
-      eq(tipQueue[0].id, 'clock', 'ordinary tip waits');
+      eq(G.activeTip.id, 'train', 'hazard tip took over');
+      eq(G.tipQueue[0].id, 'clock', 'ordinary tip waits');
       eq(tipTimeScale(0.1), TIP_SLOWMO, 'slow motion');
     });
 
     test('replaying tips shows them again', () => {
-      seenTips = new Set(Object.keys(TIPS));
+      G.seenTips = new Set(Object.keys(TIPS));
       replayTips();
       newGame();
       run(DT);
-      eq(activeTip && activeTip.id, 'move');
+      eq(G.activeTip && G.activeTip.id, 'move');
     });
 
     test('tips never change the daily traffic', () => {
       const traffic = () => {
         startPlaying({ lvl: RAIL_LEVEL + 1, daily: true });
-        run(25, () => { onSidewalk(); if (state !== 'playing') state = 'playing'; });
-        return JSON.stringify(lanes.map(l => l.cars.map(c => [c.kind, Math.round(c.x * 10)])));
+        run(25, () => { onSidewalk(); if (G.state !== 'playing') G.state = 'playing'; });
+        return JSON.stringify(G.lanes.map(l => l.cars.map(c => [c.kind, Math.round(c.x * 10)])));
       };
-      seenTips = new Set(Object.keys(TIPS));
+      G.seenTips = new Set(Object.keys(TIPS));
       const without = traffic();
-      seenTips = new Set();
+      G.seenTips = new Set();
       const withTips = traffic();
       eq(withTips, without);
     });
@@ -1339,14 +1361,14 @@
   describe('Drawing', () => {
     test('every screen draws without errors', () => {
       const screens = {
-        title: () => { state = 'title'; },
+        title: () => { G.state = 'title'; },
         countdown: () => newGame(),
         playing: () => startPlaying({ lvl: 7 }),
         hit: () => { startPlaying(); loseLife('time'); },
-        levelup: () => { startPlaying(); quietRoad(); player.y = FINISH_H - 20; run(DT); },
-        gameover: () => { startPlaying(); lives = 1; loseLife('time'); run(1.5); },
+        levelup: () => { startPlaying(); quietRoad(); G.player.y = FINISH_H - 20; run(DT); },
+        gameover: () => { startPlaying(); G.lives = 1; loseLife('time'); run(1.5); },
         paused: () => { startPlaying(); setPaused(true); },
-        dailyover: () => { startPlaying({ daily: true }); quietRoad(); lives = 1; timeLeft = 0.01; run(1.5); },
+        dailyover: () => { startPlaying({ daily: true }); quietRoad(); G.lives = 1; G.timeLeft = 0.01; run(1.5); },
       };
       for (const [name, setUp] of Object.entries(screens)) {
         setUp();
@@ -1357,13 +1379,13 @@
     test('effects, pickups, shield and slow-motion draw without errors', () => {
       startPlaying({ lvl: 7 });
       fx.crash(200, 300, 1, '#f00'); fx.confetti(); fx.sparkle(100, 100, '#0f0'); fx.shieldBreak(50, 50);
-      pickups = Object.keys(PICKUP_TYPES).map((type, i) => ({ type, x: 60 + i * 80, y: lanes[i].y, t: 5, age: 1 }));
-      player.shield = true; slowTimer = 2; invulnTimer = 1;
-      banner = { text: 'Test banner', t: 1 };
+      G.pickups = Object.keys(PICKUP_TYPES).map((type, i) => ({ type, x: 60 + i * 80, y: G.lanes[i].y, t: 5, age: 1 }));
+      G.player.shield = true; G.slowTimer = 2; G.invulnTimer = 1;
+      G.banner = { text: 'Test banner', t: 1 };
       run(0.2);
       draw();
       for (const id of Object.keys(TIPS)) {    // every tip card, with and without a target
-        activeTip = { id, t: 2, max: TIP_TIME, target: id === 'move' ? null : () => ({ x: 100, y: 120 }) };
+        G.activeTip = { id, t: 2, max: TIP_TIME, target: id === 'move' ? null : () => ({ x: 100, y: 120 }) };
         draw();
       }
     });
@@ -1371,7 +1393,6 @@
 
   // ---------- Run everything ----------
   const STORAGE_PREFIX = 'roadCrossing';
-  const originalSeedRandomness = seedRandomness;
 
   async function runAll() {
     const saved = {};                          // the player's real data, restored afterwards
@@ -1385,17 +1406,11 @@
 
     // Every test gets its own fixed random seed (from its name), so results are repeatable: a test
     // either always passes or always fails. Daily games still use the game's own date seeding.
-    let testSeed = 0;
-    seedRandomness = () => {
-      if (mode === 'daily') return originalSeedRandomness();
-      gameRandom = seededRandom(hashString(`${testSeed}/${level}/traffic`));
-      pickupRandom = seededRandom(hashString(`${testSeed}/${level}/pickups`));
-    };
 
     const results = [];
     const started = performance.now();
     for (const t of tests) {
-      testSeed = hashString(`${t.group}/${t.name}`);
+      G.testSeed = hashString(`${t.group}/${t.name}`);
       resetWorld();
       const t0 = performance.now();
       let error = null;
@@ -1404,7 +1419,7 @@
       await new Promise(r => setTimeout(r));   // keep the page responsive
     }
 
-    seedRandomness = originalSeedRandomness;
+    G.testSeed = null;
     resetWorld();
     for (const k of Object.keys(localStorage)) if (k.startsWith(STORAGE_PREFIX)) localStorage.removeItem(k);
     for (const [k, v] of Object.entries(saved)) localStorage.setItem(k, v);

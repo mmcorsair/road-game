@@ -5,62 +5,67 @@
 //   roadworks — two lanes per side are closed (cones; rubble slows you down); a steamroller rolls
 //               back and forth in one of them; the open lanes are busier.
 // Boss levels have no railway, reversible lanes or bus stop, so the boss is the star.
-const BOSSES = ['parade', 'highway', 'roadworks'];
-const BOSS_NAMES = { parade: 'the Parade', highway: 'the Highway', roadworks: 'Roadworks' };
-const BOSS_ICONS = { parade: '🎉', highway: '🛣', roadworks: '🚧' };
-const FLOAT_COLORS = ['#e84393', '#fdcb6e', '#00cec9', '#6c5ce7', '#ff7675', '#55efc4', '#fd79a8'];
+import { G } from './store.js';
+import { BOSS_EVERY, HIGHWAY_SPEED, LANES_PER_SIDE, LANE_H, MEDIAN_H, MEDIAN_Y, PARADE_GAP_MAX, PARADE_GAP_MIN, PARADE_SPEED, ROLLER_SPEED, W, fxRand, pickFrom, rand } from './config.js';
+import { addParticle } from './effects.js';
+import { ctx } from './render.js';
 
-let boss = null;                  // the current level's boss kind, or null
+export const BOSSES = ['parade', 'highway', 'roadworks'];
+export const BOSS_NAMES = { parade: 'the Parade', highway: 'the Highway', roadworks: 'Roadworks' };
+export const BOSS_ICONS = { parade: '🎉', highway: '🛣', roadworks: '🚧' };
+export const FLOAT_COLORS = ['#e84393', '#fdcb6e', '#00cec9', '#6c5ce7', '#ff7675', '#55efc4', '#fd79a8'];
 
-const bossFor = lvl => (lvl % BOSS_EVERY === 0 ? BOSSES[(lvl / BOSS_EVERY - 1) % BOSSES.length] : null);
+G.boss = null;                  // the current level's boss kind, or null
+
+export const bossFor = lvl => (lvl % BOSS_EVERY === 0 ? BOSSES[(lvl / BOSS_EVERY - 1) % BOSSES.length] : null);
 
 // Speed and gap multipliers for ordinary traffic on this level.
-const bossSpeedMul = () => (boss === 'highway' ? HIGHWAY_SPEED : 1);
-const bossGapMul = () => (boss === 'highway' ? 1.4 : boss === 'roadworks' ? 0.85 : 1);
-const bossLaneChangeMul = () => (boss === 'highway' ? 2.5 : 1);
+export const bossSpeedMul = () => (G.boss === 'highway' ? HIGHWAY_SPEED : 1);
+export const bossGapMul = () => (G.boss === 'highway' ? 1.4 : G.boss === 'roadworks' ? 0.85 : 1);
+export const bossLaneChangeMul = () => (G.boss === 'highway' ? 2.5 : 1);
 
 // Lanes ordinary traffic can't use (and lane changes, ambulances and buses avoid).
-const specialLane = lane => lane.parade || lane.closed;
+export const specialLane = lane => lane.parade || lane.closed;
 
 // Called by buildLanes() once the lanes exist, instead of railway / reversible lanes / bus stop.
-function setupBoss() {
-  for (const l of lanes) { l.parade = false; l.closed = false; l.busStop = null; }
-  if (boss === 'parade') {
+export function setupBoss() {
+  for (const l of G.lanes) { l.parade = false; l.closed = false; l.busStop = null; }
+  if (G.boss === 'parade') {
     for (const i of [LANES_PER_SIDE - 1, LANES_PER_SIDE]) {   // either side of the median
-      Object.assign(lanes[i], { parade: true, speed: PARADE_SPEED, paradeLeft: 0 });
+      Object.assign(G.lanes[i], { parade: true, speed: PARADE_SPEED, paradeLeft: 0 });
     }
-  } else if (boss === 'roadworks') {
-    for (const i of [1, 3, LANES_PER_SIDE + 1, LANES_PER_SIDE + 3]) lanes[i].closed = true;
-    const L = lanes[3];                                         // the steamroller's lane
+  } else if (G.boss === 'roadworks') {
+    for (const i of [1, 3, LANES_PER_SIDE + 1, LANES_PER_SIDE + 3]) G.lanes[i].closed = true;
+    const L = G.lanes[3];                                         // the steamroller's lane
     L.cars.push({ kind: 'roller', w: 56, h: 38, speed: ROLLER_SPEED, v: ROLLER_SPEED, x: rand(80, W - 80),
                   color: '#f1c40f' });
   }
 }
 
 // Parade lanes: floats nose to tail, with a walkable gap every few floats.
-function nextParadeGap(lane) {
+export function nextParadeGap(lane) {
   if (lane.paradeLeft > 0) { lane.paradeLeft--; return 6; }
   lane.paradeLeft = 3 + Math.floor(rand(0, 4));
   return rand(PARADE_GAP_MIN, PARADE_GAP_MAX);
 }
 
-function makeFloat(c) {
+export function makeFloat(c) {
   c.color = pickFrom(FLOAT_COLORS);
   c.balloons = Array.from({ length: 3 }, () => pickFrom(FLOAT_COLORS));
 }
 
 // The steamroller drives itself: back and forth across the closed lane.
-function updateRoller(c, lane, dt) {
+export function updateRoller(c, lane, dt) {
   c.x += lane.dir * c.v * dt;
   if ((lane.dir > 0 && c.x > W - 40) || (lane.dir < 0 && c.x < 40)) lane.dir *= -1;
 }
 
 // Rubble in a closed lane slows the player down.
-const inRubble = () => boss === 'roadworks' && lanes.some(l => l.closed && Math.abs(player.y - l.y) < LANE_H / 2);
+export const inRubble = () => G.boss === 'roadworks' && G.lanes.some(l => l.closed && Math.abs(G.player.y - l.y) < LANE_H / 2);
 
 // ---------- Drawing ----------
-function drawBossRoad(now) {
-  if (boss === 'highway') {
+export function drawBossRoad(now) {
+  if (G.boss === 'highway') {
     ctx.fillStyle = '#b9bec6';                                  // concrete barrier on the median
     ctx.fillRect(0, MEDIAN_Y + 6, W, MEDIAN_H - 12);
     ctx.fillStyle = '#8d939c';
@@ -74,8 +79,8 @@ function drawBossRoad(now) {
     ctx.textBaseline = 'middle';
     ctx.fillText('HIGHWAY', W - 52, 20.5);
   }
-  if (boss === 'roadworks') {
-    for (const l of lanes) {
+  if (G.boss === 'roadworks') {
+    for (const l of G.lanes) {
       if (!l.closed) continue;
       const top = l.y - LANE_H / 2;
       ctx.fillStyle = '#6e5a43';                                // dug-up road
@@ -102,7 +107,7 @@ function drawBossRoad(now) {
 }
 
 // A parade float: a decorated platform with balloons. Local frame, front = +x.
-function drawFloat(c, now) {
+export function drawFloat(c, now) {
   const { w, h } = c;
   ctx.fillStyle = c.color;
   ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w, h, 8); ctx.fill();
@@ -121,7 +126,7 @@ function drawFloat(c, now) {
 }
 
 // The steamroller: a big drum in front, yellow body, cab on top.
-function drawRoller(c) {
+export function drawRoller(c) {
   const { w, h } = c;
   ctx.fillStyle = '#7f8c8d';                                    // drum
   ctx.beginPath(); ctx.roundRect(w / 2 - 16, -h / 2, 16, h, 4); ctx.fill();
@@ -136,9 +141,9 @@ function drawRoller(c) {
 }
 
 // Now and then a float throws a little confetti.
-function emitParadeConfetti(dt) {
-  if (boss !== 'parade') return;
-  for (const l of lanes) {
+export function emitParadeConfetti(dt) {
+  if (G.boss !== 'parade') return;
+  for (const l of G.lanes) {
     if (!l.parade) continue;
     for (const c of l.cars) {
       if (c.x < 0 || c.x > W || fxRand(0, 1) > dt * 0.6) continue;

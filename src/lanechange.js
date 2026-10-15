@@ -3,25 +3,31 @@
 // a slower vehicle, or just because. They always signal first (blinking indicators), then glide over.
 // While gliding, a vehicle already belongs to the new lane and c.dy is its vertical offset from that
 // lane's centre line. Trucks are more cautious: longer signal, slower move, bigger gap, rarer.
-let presimulating = false;       // no lane changes while buildLanes() fast-forwards traffic
+import { G } from './store.js';
+import { BIKE_CHANGE_TIME, BIKE_SIGNAL, FOLLOW_DIST, LANES_PER_SIDE, LANE_CHANGE_SIGNAL, LANE_CHANGE_TIME, TRUCK_CHANGE_TIME, TRUCK_SIGNAL, W, pickFrom, rand } from './config.js';
+import { bossLaneChangeMul, specialLane } from './boss.js';
+import { brakeDecel } from './weather.js';
+import { ctx } from './render.js';
 
-const vehicleY = (c, lane) => lane.y + (c.dy || 0);
+G.presimulating = false;       // no lane changes while buildLanes() fast-forwards traffic
+
+export const vehicleY = (c, lane) => lane.y + (c.dy || 0);
 
 // Per-kind behaviour: signal time, glide time, extra safety gap (px), reaction margin (s of closing
 // speed added to the gap), how eager they are, and how often (s, min–max) they look for a chance.
 // Motorbikes weave through traffic. Trucks are slow, so faster cars behind always close in; after a
 // long, clear signal the drivers behind are ready, so trucks get a shorter reaction margin — otherwise
 // they would almost never find a gap.
-const LANE_CHANGERS = {
+export const LANE_CHANGERS = {
   car:   { signal: LANE_CHANGE_SIGNAL, time: LANE_CHANGE_TIME, gap: 30, reaction: 0.8, eagerness: 1,   every: [1.5, 4] },
   bike:  { signal: BIKE_SIGNAL,        time: BIKE_CHANGE_TIME, gap: 18, reaction: 0.8, eagerness: 1.6, every: [0.6, 1.8] },
   truck: { signal: TRUCK_SIGNAL,       time: TRUCK_CHANGE_TIME, gap: 40, reaction: 0.3, eagerness: 0.9, every: [1.2, 3] },
 };
 
 // Neighbouring lanes a vehicle could move into: same side of the median, same direction, ordinary road.
-function laneChangeTargets(lane) {
+export function laneChangeTargets(lane) {
   const half = lane.index < LANES_PER_SIDE ? 0 : 1;
-  return [lanes[lane.index - 1], lanes[lane.index + 1]].filter(t =>
+  return [G.lanes[lane.index - 1], G.lanes[lane.index + 1]].filter(t =>
     t && (t.index < LANES_PER_SIDE ? 0 : 1) === half && t.dir === lane.dir &&
     !t.rail && !t.draining && !t.emergency && !specialLane(t));
 }
@@ -29,7 +35,7 @@ function laneChangeTargets(lane) {
 // Is there a safe gap in `target` for vehicle c, including room for faster traffic behind?
 // `yielding`: the vehicle has already been signalling, so drivers around it make way — only a smaller
 // gap plus safe braking room is needed (otherwise slow vehicles would cancel almost every time).
-function hasRoom(target, c, yielding = false) {
+export function hasRoom(target, c, yielding = false) {
   for (const t of target.cars) {
     const ahead = (t.x - c.x) * target.dir > 0;
     const gap = Math.abs(t.x - c.x) - (t.w + c.w) / 2;
@@ -42,7 +48,7 @@ function hasRoom(target, c, yielding = false) {
   return true;
 }
 
-function updateLaneChanges(lane, dt) {
+export function updateLaneChanges(lane, dt) {
   for (const c of [...lane.cars]) {                     // copy: a vehicle may leave this lane
     const style = LANE_CHANGERS[c.kind];
     if (!style) continue;                               // ambulances and trains keep their lane
@@ -61,8 +67,8 @@ function updateLaneChanges(lane, dt) {
     const i = lane.cars.indexOf(c), ahead = lane.cars[i - 1];
     const stuck = ahead && c.v < c.speed - 15 &&
       (ahead.x - c.x) * lane.dir - (ahead.w + c.w) / 2 < FOLLOW_DIST * 1.5;
-    const chance = (stuck ? 0.9 : Math.min(0.15 + 0.05 * level, 0.45)) * style.eagerness * bossLaneChangeMul();
-    if (gameRandom() > chance) continue;
+    const chance = (stuck ? 0.9 : Math.min(0.15 + 0.05 * G.level, 0.45)) * style.eagerness * bossLaneChangeMul();
+    if (G.gameRandom() > chance) continue;
 
     const options = laneChangeTargets(lane).filter(t => hasRoom(t, c));
     if (!options.length) continue;
@@ -72,7 +78,11 @@ function updateLaneChanges(lane, dt) {
 }
 
 // Moves c into `to`, keeping that lane's front-to-back order, and starts the glide.
-function moveToLane(c, from, to) {
+// Optional callback for observing lane changes (used by the tests).
+export const laneHooks = { onMove: null };
+
+export function moveToLane(c, from, to) {
+  if (laneHooks.onMove) laneHooks.onMove(c, from, to);
   from.cars.splice(from.cars.indexOf(c), 1);
   let i = to.cars.findIndex(t => t.x * to.dir < c.x * to.dir);
   if (i < 0) i = to.cars.length;
@@ -82,7 +92,7 @@ function moveToLane(c, from, to) {
 }
 
 // Called every frame for every vehicle: eases c.dy to 0 and records the vertical speed for tilting.
-function animateLaneChange(c, dt) {
+export function animateLaneChange(c, dt) {
   if (!c.change) return;
   c.change.t += dt;
   const p = Math.min(1, c.change.t / c.change.time);
@@ -99,7 +109,7 @@ function animateLaneChange(c, dt) {
 
 // Blinking amber indicators on the side the vehicle is moving to: front and rear corners, plus one
 // halfway along long vehicles. Drawn in the vehicle's local frame, where the front points to +x.
-function drawTurnSignals(c, now) {
+export function drawTurnSignals(c, now) {
   if (!c.signal || Math.floor(now / 250) % 2) return;
   const { w, h } = c, y = c.signal.side * (h / 2 - 1);
   const xs = w > 90 ? [w / 2 - 3.5, 0, -w / 2 + 3.5] : [w / 2 - 3.5, -w / 2 + 3.5];
@@ -109,7 +119,7 @@ function drawTurnSignals(c, now) {
     ctx.fillStyle = '#ffb300';
     ctx.fillRect(x - 2.5, y - 2, 5, 4);
   }
-  if (settings.contrast) {                     // high-contrast: a white arrow pointing the way it's moving
+  if (G.settings.contrast) {                     // high-contrast: a white arrow pointing the way it's moving
     const s = c.signal.side, tip = y + s * 14;
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = '#000000';

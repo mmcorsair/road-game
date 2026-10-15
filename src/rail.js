@@ -1,25 +1,30 @@
 // ---------- Railway crossing ----------
 // From RAIL_LEVEL on, a lane is replaced by train tracks. Trains are rare but very long and fast,
 // and always announced: flashing lights and a bell for TRAIN_WARN seconds before one arrives.
-const WAGON_COLORS = ['#8e5b3a', '#2c3e50', '#7f8c8d', '#16a085', '#b03a2e', '#5d6d7e'];
-const LOCO_COLORS = ['#c0392b', '#1f618d', '#d68910', '#196f3d'];
-const LOCO_LEN = 100, WAGON_LEN = 90, COUPLING = 4;
+import { G } from './store.js';
+import { LANE_H, RAIL_LEVEL, TRAIN_MAX, TRAIN_MIN, TRAIN_SPEED_MAX, TRAIN_SPEED_MIN, TRAIN_WARN, W, pickFrom, rand } from './config.js';
+import { sfx } from './sound.js';
+import { ctx } from './render.js';
 
-function railLaneCount() {
-  if (level < RAIL_LEVEL) return 0;
-  return level >= RAIL_LEVEL + 4 ? 2 : 1;
+export const WAGON_COLORS = ['#8e5b3a', '#2c3e50', '#7f8c8d', '#16a085', '#b03a2e', '#5d6d7e'];
+export const LOCO_COLORS = ['#c0392b', '#1f618d', '#d68910', '#196f3d'];
+export const LOCO_LEN = 100, WAGON_LEN = 90, COUPLING = 4;
+
+export function railLaneCount() {
+  if (G.level < RAIL_LEVEL) return 0;
+  return G.level >= RAIL_LEVEL + 4 ? 2 : 1;
 }
 
-function makeRailLane(lane) {
+export function makeRailLane(lane) {
   lane.rail = { phase: 'idle', timer: rand(2, 5), bell: 0 };
   lane.cars = [];
 }
 
-function spawnTrain(lane) {
-  lane.dir = gameRandom() < 0.5 ? -1 : 1;              // trains come from either side
-  const wagons = 3 + Math.floor(gameRandom() * 4);
+export function spawnTrain(lane) {
+  lane.dir = G.gameRandom() < 0.5 ? -1 : 1;              // trains come from either side
+  const wagons = 3 + Math.floor(G.gameRandom() * 4);
   const w = LOCO_LEN + wagons * (WAGON_LEN + COUPLING);
-  const speed = rand(TRAIN_SPEED_MIN, TRAIN_SPEED_MAX) * (1 + 0.05 * (level - RAIL_LEVEL));
+  const speed = rand(TRAIN_SPEED_MIN, TRAIN_SPEED_MAX) * (1 + 0.05 * (G.level - RAIL_LEVEL));
   const train = {
     kind: 'train', w, h: 34, speed, v: speed, braking: false, wagons,
     x: lane.dir > 0 ? -w / 2 : W + w / 2,
@@ -31,9 +36,9 @@ function spawnTrain(lane) {
 }
 
 // Rail lanes run their own schedule instead of normal traffic: idle → warning → passing → idle.
-function updateRail(lane, dt) {
+export function updateRail(lane, dt) {
   const r = lane.rail;
-  const audible = state === 'playing' || state === 'countdown';
+  const audible = G.state === 'playing' || G.state === 'countdown';
   if (r.phase === 'idle') {
     if ((r.timer -= dt) <= 0) {
       r.phase = 'warning';
@@ -60,8 +65,8 @@ function updateRail(lane, dt) {
 }
 
 // ---------- Railway drawing ----------
-function drawRailTracks(now) {
-  for (const lane of lanes) {
+export function drawRailTracks(now) {
+  for (const lane of G.lanes) {
     if (!lane.rail) continue;
     const top = lane.y - LANE_H / 2;
     ctx.fillStyle = '#6b6158';                           // gravel ballast
@@ -90,7 +95,7 @@ function drawRailTracks(now) {
 }
 
 // Idle: a white ✕ crossbuck. Active: two red lights flashing alternately.
-function drawCrossingSignal(x, y, active, flash) {
+export function drawCrossingSignal(x, y, active, flash) {
   ctx.save();
   ctx.translate(x, y);
   if (active) {
@@ -121,7 +126,7 @@ function drawCrossingSignal(x, y, active, flash) {
   ctx.restore();
 }
 
-function drawTrain(c, y, dir) {
+export function drawTrain(c, y, dir) {
   const { w, h } = c;
   ctx.save();
   ctx.translate(c.x, y);

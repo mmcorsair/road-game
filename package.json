@@ -1,0 +1,14 @@
+{
+  "name": "road-crossing",
+  "private": true,
+  "description": "A browser game: guide a little man across a busy road.",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/index.js --bundle --format=iife --target=es2020 --outfile=dist/game.js --sourcemap && esbuild tests/tests.js --bundle --format=iife --target=es2020 --outfile=dist/tests.js --sourcemap",
+    "watch": "esbuild src/index.js --bundle --format=iife --target=es2020 --outfile=dist/game.js --sourcemap --watch",
+    "test": "npm run build && tests/run.sh"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

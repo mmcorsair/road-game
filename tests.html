@@ -52,31 +52,8 @@
   })();
 </script>
 
-<!-- Same scripts, same order as index.html. -->
-<script src="js/config.js"></script>
-<script src="js/settings.js"></script>
-<script src="js/state.js"></script>
-<script src="js/sound.js"></script>
-<script src="js/music.js"></script>
-<script src="js/effects.js"></script>
-<script src="js/traffic.js"></script>
-<script src="js/rail.js"></script>
-<script src="js/bus.js"></script>
-<script src="js/boss.js"></script>
-<script src="js/lanechange.js"></script>
-<script src="js/weather.js"></script>
-<script src="js/player.js"></script>
-<script src="js/pickups.js"></script>
-<script src="js/skins.js"></script>
-<script src="js/daily.js"></script>
-<script src="js/tutorial.js"></script>
-<script src="js/achievements.js"></script>
-<script src="js/menu.js"></script>
-<script src="js/game.js"></script>
-<script src="js/render.js"></script>
-<script src="js/input.js"></script>
-<script src="js/main.js"></script>
 
-<script src="tests/tests.js"></script>
 </body>
 </html>
+<!-- The game plus the tests, bundled from src/ and tests/ by esbuild (npm run build). -->
+<script src="dist/tests.js"></script>

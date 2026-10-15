@@ -2,7 +2,12 @@
 // Each tip appears once ever, the first time its situation actually happens, and points at the thing
 // it explains. Hazard tips briefly slow the game down so there's time to read them. Tips never change
 // the simulation itself (slow motion only stretches real time), so the daily challenge is unaffected.
-const TIPS = {
+import { G } from './store.js';
+import { FINISH_H, H, MEDIAN_H, MEDIAN_Y, START_H, TIME_LIMIT, W } from './config.js';
+import { vehicleY } from './lanechange.js';
+import { ctx, touchUI } from './render.js';
+
+export const TIPS = {
   move:     { icon: '👣', text: () => touchUI()
               ? 'Hold the arrows (or drag on the road) to walk to the green FINISH.'
               : 'Use the arrow keys or WASD to walk to the green FINISH.' },
@@ -20,86 +25,86 @@ const TIPS = {
   siren:    { icon: '🚑', text: 'Siren and flashing lights: an ambulance is coming fast in that lane.', hazard: true },
   train:    { icon: '🚆', text: 'Red lights and a bell: a train is coming. Stay off the tracks!', hazard: true },
 };
-const TIP_TIME = 5;            // seconds a tip stays up
-const TIP_SLOWMO = 0.35;       // game speed while a hazard tip first appears
-const TIP_SLOWMO_TIME = 1.4;   // real seconds of slow motion
+export const TIP_TIME = 5;            // seconds a tip stays up
+export const TIP_SLOWMO = 0.35;       // game speed while a hazard tip first appears
+export const TIP_SLOWMO_TIME = 1.4;   // real seconds of slow motion
 
-let seenTips = new Set((() => { try { return JSON.parse(localStorage.getItem('roadCrossingTips')) || []; } catch { return []; } })());
-let activeTip = null;          // { id, t, max, target: () => ({x, y}) | null }
-let tipQueue = [];
-let tipSlow = 0;
+G.seenTips = new Set((() => { try { return JSON.parse(localStorage.getItem('roadCrossingTips')) || []; } catch { return []; } })());
+G.activeTip = null;          // { id, t, max, target: () => ({x, y}) | null }
+G.tipQueue = [];
+G.tipSlow = 0;
 
-function saveSeenTips() {
-  try { localStorage.setItem('roadCrossingTips', JSON.stringify([...seenTips])); } catch {}
+export function saveSeenTips() {
+  try { localStorage.setItem('roadCrossingTips', JSON.stringify([...G.seenTips])); } catch {}
 }
 
-function showTip(id, target = null) {
-  if (seenTips.has(id) || (activeTip && activeTip.id === id) || tipQueue.some(q => q.id === id)) return;
+export function showTip(id, target = null) {
+  if (G.seenTips.has(id) || (G.activeTip && G.activeTip.id === id) || G.tipQueue.some(q => q.id === id)) return;
   const tip = { id, t: TIP_TIME, max: TIP_TIME, target };
-  if (!activeTip) return startTip(tip);
-  if (TIPS[id].hazard && !TIPS[activeTip.id].hazard) {    // hazards go first; the current tip waits
-    tipQueue.unshift({ ...activeTip, t: TIP_TIME, max: TIP_TIME });
-    seenTips.delete(activeTip.id);
+  if (!G.activeTip) return startTip(tip);
+  if (TIPS[id].hazard && !TIPS[G.activeTip.id].hazard) {    // hazards go first; the current tip waits
+    G.tipQueue.unshift({ ...G.activeTip, t: TIP_TIME, max: TIP_TIME });
+    G.seenTips.delete(G.activeTip.id);
     return startTip(tip);
   }
-  tipQueue.push(tip);
+  G.tipQueue.push(tip);
 }
 
-function startTip(tip) {
-  activeTip = tip;
-  seenTips.add(tip.id);
+export function startTip(tip) {
+  G.activeTip = tip;
+  G.seenTips.add(tip.id);
   saveSeenTips();
-  if (TIPS[tip.id].hazard) tipSlow = TIP_SLOWMO_TIME;
+  if (TIPS[tip.id].hazard) G.tipSlow = TIP_SLOWMO_TIME;
 }
 
-function dismissTip() {
-  if (activeTip) activeTip.t = Math.min(activeTip.t, 0.3);   // quick fade-out
+export function dismissTip() {
+  if (G.activeTip) G.activeTip.t = Math.min(G.activeTip.t, 0.3);   // quick fade-out
 }
 
-function replayTips() {
-  seenTips = new Set();
+export function replayTips() {
+  G.seenTips = new Set();
   saveSeenTips();
-  activeTip = null;
-  tipQueue = [];
-  banner = { text: '💡 Tips will show again', t: 2 };
+  G.activeTip = null;
+  G.tipQueue = [];
+  G.banner = { text: '💡 Tips will show again', t: 2 };
 }
 
 // Real-time multiplier for the main loop: slow motion while a hazard tip is fresh.
-function tipTimeScale(realDt) {
-  if (tipSlow <= 0) return 1;
-  tipSlow -= realDt;
+export function tipTimeScale(realDt) {
+  if (G.tipSlow <= 0) return 1;
+  G.tipSlow -= realDt;
   return TIP_SLOWMO;
 }
 
 // Called every simulation step (not while paused): advance the current tip and watch for new situations.
-function updateTips(dt) {
-  if (activeTip && (activeTip.t -= dt) <= 0) {
-    activeTip = null;
-    if (tipQueue.length) startTip(tipQueue.shift());
+export function updateTips(dt) {
+  if (G.activeTip && (G.activeTip.t -= dt) <= 0) {
+    G.activeTip = null;
+    if (G.tipQueue.length) startTip(G.tipQueue.shift());
   }
-  if (state !== 'playing' && state !== 'countdown') {
-    if (state !== 'hit') dismissTip();
+  if (G.state !== 'playing' && G.state !== 'countdown') {
+    if (G.state !== 'hit') dismissTip();
     return;
   }
-  const atPlayer = () => ({ x: player.x, y: player.y });
+  const atPlayer = () => ({ x: G.player.x, y: G.player.y });
 
   showTip('move', atPlayer);
-  if (activeTip && activeTip.id === 'move' && activeTip.t > 0.3) {
-    activeTip.from ??= { x: player.x, y: player.y };
-    activeTip.t = Math.max(activeTip.t, 1);                  // stays until the player has walked a bit
-    if (Math.hypot(player.x - activeTip.from.x, player.y - activeTip.from.y) > 40) dismissTip();
+  if (G.activeTip && G.activeTip.id === 'move' && G.activeTip.t > 0.3) {
+    G.activeTip.from ??= { x: G.player.x, y: G.player.y };
+    G.activeTip.t = Math.max(G.activeTip.t, 1);                  // stays until the player has walked a bit
+    if (Math.hypot(G.player.x - G.activeTip.from.x, G.player.y - G.activeTip.from.y) > 40) dismissTip();
   }
-  if (boss) showTip(boss);
-  if (weather.rain) showTip('rain');
-  if (weather.night) showTip('night');
-  if (state !== 'playing') return;
+  if (G.boss) showTip(G.boss);
+  if (G.weather.rain) showTip('rain');
+  if (G.weather.night) showTip('night');
+  if (G.state !== 'playing') return;
 
-  if (timeLeft < TIME_LIMIT - 6 && seenTips.has('move')) showTip('clock', () => ({ x: W - 30, y: H - 14 }));
-  if (player.y > MEDIAN_Y && player.y < MEDIAN_Y + MEDIAN_H) showTip('median', atPlayer);
-  const p = pickups.find(pk => pk.age < 1);
+  if (G.timeLeft < TIME_LIMIT - 6 && G.seenTips.has('move')) showTip('clock', () => ({ x: W - 30, y: H - 14 }));
+  if (G.player.y > MEDIAN_Y && G.player.y < MEDIAN_Y + MEDIAN_H) showTip('median', atPlayer);
+  const p = G.pickups.find(pk => pk.age < 1);
   if (p) showTip('pickup', () => ({ x: p.x, y: p.y }));
 
-  for (const lane of lanes) {
+  for (const lane of G.lanes) {
     const bus = lane.cars.find(c => c.kind === 'bus' && c.dwell);
     if (bus) showTip('bus', () => ({ x: bus.x, y: lane.y }));
     if (lane.draining) showTip('reversal', () => ({ x: W / 2, y: lane.y }));
@@ -108,7 +113,7 @@ function updateTips(dt) {
     for (const c of lane.cars) {
       if (c.signal && c.x > 30 && c.x < W - 30) {
         showTip('signal', () => {
-          const l = lanes.find(ln => ln.cars.includes(c));
+          const l = G.lanes.find(ln => ln.cars.includes(c));
           return l ? { x: c.x, y: vehicleY(c, l) } : null;
         });
       }
@@ -117,7 +122,7 @@ function updateTips(dt) {
 }
 
 // Splits text into lines that fit maxWidth (in the current ctx font).
-function wrapText(text, maxWidth) {
+export function wrapText(text, maxWidth) {
   const lines = [];
   let line = '';
   for (const word of text.split(' ')) {
@@ -133,11 +138,11 @@ function wrapText(text, maxWidth) {
   return lines;
 }
 
-function drawTip(now) {
-  if (!activeTip) return;
-  const tip = TIPS[activeTip.id];
-  const alpha = Math.max(0, Math.min(1, (activeTip.max - activeTip.t) * 4, activeTip.t * 3));
-  const target = activeTip.target && activeTip.target();
+export function drawTip(now) {
+  if (!G.activeTip) return;
+  const tip = TIPS[G.activeTip.id];
+  const alpha = Math.max(0, Math.min(1, (G.activeTip.max - G.activeTip.t) * 4, G.activeTip.t * 3));
+  const target = G.activeTip.target && G.activeTip.target();
 
   ctx.save();
   ctx.globalAlpha = alpha;

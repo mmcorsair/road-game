@@ -1,7 +1,16 @@
 // ---------- Achievements ----------
 // Goals that unlock once, forever, with a banner. They only observe the game — never change it —
 // so the daily challenge is unaffected. Shown in the second tab of the skins panel.
-const ACHIEVEMENTS = [
+import { G } from './store.js';
+import { LANE_H } from './config.js';
+import { keys } from './state.js';
+import { sfx } from './sound.js';
+import { BOSSES } from './boss.js';
+import { PICKUP_TYPES } from './pickups.js';
+import { renderSkinPicker } from './skins.js';
+import { todayKey } from './daily.js';
+
+export const ACHIEVEMENTS = [
   { id: 'first',    icon: '👣', name: 'First steps',         desc: 'Complete level 1.' },
   { id: 'nonstop',  icon: '🏃', name: 'Non-stop',            desc: 'Complete a level without stopping.' },
   { id: 'speedy',   icon: '⚡', name: 'Speed walker',        desc: 'Finish a level with 20 seconds or more left.' },
@@ -22,112 +31,112 @@ const ACHIEVEMENTS = [
   { id: 'boss',     icon: '👑', name: 'Boss buster',         desc: 'Complete a boss level.' },
   { id: 'tour',     icon: '🗺', name: 'Grand tour',          desc: 'Complete all three kinds of boss level.' },
 ];
-const ACHIEVEMENT_BY_ID = Object.fromEntries(ACHIEVEMENTS.map(a => [a.id, a]));
-const SCORE_ACHIEVEMENTS = [[1000, 'score1k'], [5000, 'score5k'], [10000, 'score10k']];
+export const ACHIEVEMENT_BY_ID = Object.fromEntries(ACHIEVEMENTS.map(a => [a.id, a]));
+export const SCORE_ACHIEVEMENTS = [[1000, 'score1k'], [5000, 'score5k'], [10000, 'score10k']];
 
 // Saved: which are unlocked (with the date) and which bonus kinds were ever collected.
-let achievements = (() => {
+G.achievements = (() => {
   try {
     const s = JSON.parse(localStorage.getItem('roadCrossingAchievements'));
     if (s && s.unlocked) return { unlocked: s.unlocked, bonusKinds: s.bonusKinds || [], bosses: s.bosses || [] };
   } catch {}
   return { unlocked: {}, bonusKinds: [], bosses: [] };
 })();
-let gameAch = { coins: 0, livesLost: 0, earned: [] };          // this game
-let levelAch = { livesLost: 0, still: 0, onTracks: false };    // this level
-let toastQueue = [];
+G.gameAch = { coins: 0, livesLost: 0, earned: [] };          // this game
+G.levelAch = { livesLost: 0, still: 0, onTracks: false };    // this level
+G.toastQueue = [];
 
-function saveAchievements() {
-  try { localStorage.setItem('roadCrossingAchievements', JSON.stringify(achievements)); } catch {}
+export function saveAchievements() {
+  try { localStorage.setItem('roadCrossingAchievements', JSON.stringify(G.achievements)); } catch {}
 }
 
-const hasAchievement = id => id in achievements.unlocked;
+export const hasAchievement = id => id in G.achievements.unlocked;
 
-function unlockAchievement(id) {
+export function unlockAchievement(id) {
   if (hasAchievement(id)) return;
-  achievements.unlocked[id] = todayKey();
+  G.achievements.unlocked[id] = todayKey();
   saveAchievements();
   const a = ACHIEVEMENT_BY_ID[id];
-  gameAch.earned.push(a.name);
+  G.gameAch.earned.push(a.name);
   toast(`🏆 Achievement: ${a.name}`);
   sfx.achievement();
   renderSkinPicker();                                    // refresh the panel if it's open
 }
 
 // Banners take turns, so several unlocks at once are all seen.
-function toast(text) {
-  if (banner) toastQueue.push({ text, t: 2.5 });
-  else banner = { text, t: 2.5 };
+export function toast(text) {
+  if (G.banner) G.toastQueue.push({ text, t: 2.5 });
+  else G.banner = { text, t: 2.5 };
 }
-function pumpToasts() {
-  if (!banner && toastQueue.length) banner = toastQueue.shift();
+export function pumpToasts() {
+  if (!G.banner && G.toastQueue.length) G.banner = G.toastQueue.shift();
 }
 
 // ---------- Hooks called by the game ----------
-function achOnNewGame() {
-  gameAch = { coins: 0, livesLost: 0, earned: [] };
+export function achOnNewGame() {
+  G.gameAch = { coins: 0, livesLost: 0, earned: [] };
   achOnNewLevel();
 }
 
-function achOnNewLevel() {
-  levelAch = { livesLost: 0, still: 0, onTracks: false };
+export function achOnNewLevel() {
+  G.levelAch = { livesLost: 0, still: 0, onTracks: false };
 }
 
-function achOnLifeLost() {
-  gameAch.livesLost++;
-  levelAch.livesLost++;
-  levelAch.onTracks = false;                             // getting hit on the tracks doesn't count
+export function achOnLifeLost() {
+  G.gameAch.livesLost++;
+  G.levelAch.livesLost++;
+  G.levelAch.onTracks = false;                             // getting hit on the tracks doesn't count
 }
 
-function achOnScore() {
-  for (const [points, id] of SCORE_ACHIEVEMENTS) if (score >= points) unlockAchievement(id);
+export function achOnScore() {
+  for (const [points, id] of SCORE_ACHIEVEMENTS) if (G.score >= points) unlockAchievement(id);
 }
 
-function achOnPickup(type) {
-  if (type === 'coin' && ++gameAch.coins >= 5) unlockAchievement('coins');
-  if (!achievements.bonusKinds.includes(type)) {
-    achievements.bonusKinds.push(type);
+export function achOnPickup(type) {
+  if (type === 'coin' && ++G.gameAch.coins >= 5) unlockAchievement('coins');
+  if (!G.achievements.bonusKinds.includes(type)) {
+    G.achievements.bonusKinds.push(type);
     saveAchievements();
   }
-  if (Object.keys(PICKUP_TYPES).every(t => achievements.bonusKinds.includes(t))) unlockAchievement('hunter');
+  if (Object.keys(PICKUP_TYPES).every(t => G.achievements.bonusKinds.includes(t))) unlockAchievement('hunter');
 }
 
 // `level` is the level just completed.
-function achOnLevelComplete() {
-  if (level === 1) unlockAchievement('first');
-  if (levelAch.still < 0.5) unlockAchievement('nonstop');
-  if (timeLeft >= 20) unlockAchievement('speedy');
-  if (weather.rain && levelAch.livesLost === 0) unlockAchievement('rain');
-  if (weather.night && levelAch.livesLost === 0) unlockAchievement('night');
-  if (level + 1 >= 6 && gameAch.livesLost === 0) unlockAchievement('flawless');
-  if (level + 1 >= 5) unlockAchievement('level5');
-  if (level + 1 >= 10) unlockAchievement('level10');
-  if (boss) {
+export function achOnLevelComplete() {
+  if (G.level === 1) unlockAchievement('first');
+  if (G.levelAch.still < 0.5) unlockAchievement('nonstop');
+  if (G.timeLeft >= 20) unlockAchievement('speedy');
+  if (G.weather.rain && G.levelAch.livesLost === 0) unlockAchievement('rain');
+  if (G.weather.night && G.levelAch.livesLost === 0) unlockAchievement('night');
+  if (G.level + 1 >= 6 && G.gameAch.livesLost === 0) unlockAchievement('flawless');
+  if (G.level + 1 >= 5) unlockAchievement('level5');
+  if (G.level + 1 >= 10) unlockAchievement('level10');
+  if (G.boss) {
     unlockAchievement('boss');
-    achievements.bosses ??= [];
-    if (!achievements.bosses.includes(boss)) {
-      achievements.bosses.push(boss);
+    G.achievements.bosses ??= [];
+    if (!G.achievements.bosses.includes(G.boss)) {
+      G.achievements.bosses.push(G.boss);
       saveAchievements();
     }
-    if (BOSSES.every(b => achievements.bosses.includes(b))) unlockAchievement('tour');
+    if (BOSSES.every(b => G.achievements.bosses.includes(b))) unlockAchievement('tour');
   }
 }
 
 // Every playing step: time spent standing still, and crossing tracks while the lights flash.
-function achUpdate(dt) {
-  if (!keys.up && !keys.down && !keys.left && !keys.right) levelAch.still += dt;
-  const onActiveTracks = lanes.some(l => l.rail && l.rail.phase !== 'idle' && Math.abs(player.y - l.y) < LANE_H / 2);
-  if (onActiveTracks) levelAch.onTracks = true;
-  else if (levelAch.onTracks && !lanes.some(l => l.rail && Math.abs(player.y - l.y) < LANE_H / 2)) {
+export function achUpdate(dt) {
+  if (!keys.up && !keys.down && !keys.left && !keys.right) G.levelAch.still += dt;
+  const onActiveTracks = G.lanes.some(l => l.rail && l.rail.phase !== 'idle' && Math.abs(G.player.y - l.y) < LANE_H / 2);
+  if (onActiveTracks) G.levelAch.onTracks = true;
+  else if (G.levelAch.onTracks && !G.lanes.some(l => l.rail && Math.abs(G.player.y - l.y) < LANE_H / 2)) {
     unlockAchievement('train');                          // made it off the tracks alive
-    levelAch.onTracks = false;
+    G.levelAch.onTracks = false;
   }
 }
 
 // ---------- Achievements tab ----------
-const achList = document.getElementById('achList');
+export const achList = document.getElementById('achList');
 
-function renderAchievements() {
+export function renderAchievements() {
   achList.textContent = '';
   for (const a of ACHIEVEMENTS) {
     const done = hasAchievement(a.id);
@@ -146,12 +155,12 @@ function renderAchievements() {
     const status = document.createElement('span');
     status.className = 'ach-status';
     status.textContent = done ? '✓' : '🔒';
-    status.title = done ? `Unlocked ${achievements.unlocked[a.id]}` : 'Locked';
+    status.title = done ? `Unlocked ${G.achievements.unlocked[a.id]}` : 'Locked';
     row.append(icon, text, status);
     achList.append(row);
   }
 }
 
-function achievementCount() {
+export function achievementCount() {
   return `${ACHIEVEMENTS.filter(a => hasAchievement(a.id)).length}/${ACHIEVEMENTS.length}`;
 }

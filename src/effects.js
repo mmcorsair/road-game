@@ -1,24 +1,31 @@
 // ---------- Visual effects: particles and screen shake ----------
 // Particles are purely cosmetic: they never affect gameplay or collisions.
-let particles = [];
-let shakeTime = 0, shakeDuration = 1, shakeMag = 0;
-const reduceMotion = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
-const CONFETTI_COLORS = ['#f1c40f', '#e74c3c', '#3498db', '#2ecc71', '#9b59b6', '#ffffff'];
+import { G } from './store.js';
+import { FINISH_H, W, fxRand } from './config.js';
+import { vehicleY } from './lanechange.js';
+import { ctx } from './render.js';
+
+G.particles = [];
+G.shakeTime = 0;
+G.shakeDuration = 1;
+G.shakeMag = 0;
+export const reduceMotion = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+export const CONFETTI_COLORS = ['#f1c40f', '#e74c3c', '#3498db', '#2ecc71', '#9b59b6', '#ffffff'];
 
 // kind: 'dot' (round), 'shard' (spinning rectangle) or 'smoke' (soft, growing circle).
 // under: drawn beneath the vehicles (exhaust) instead of on top of everything.
-function addParticle(p) {
-  particles.push({ vx: 0, vy: 0, drag: 0, gravity: 0, grow: 0, spin: 0, rot: 0, alpha: 1, under: false,
+export function addParticle(p) {
+  G.particles.push({ vx: 0, vy: 0, drag: 0, gravity: 0, grow: 0, spin: 0, rot: 0, alpha: 1, under: false,
                    ...p, max: p.life });
 }
 
-function shake(duration, magnitude) {
-  if (reduceMotion || !settings.shake) return;
-  shakeTime = shakeDuration = duration;
-  shakeMag = magnitude;
+export function shake(duration, magnitude) {
+  if (reduceMotion || !G.settings.shake) return;
+  G.shakeTime = G.shakeDuration = duration;
+  G.shakeMag = magnitude;
 }
 
-const fx = {
+export const fx = {
   crash(x, y, dir, color) {
     for (let i = 0; i < 18; i++) {           // sparks
       addParticle({ kind: 'dot', x, y, vx: dir * fxRand(60, 280) + fxRand(-80, 80), vy: fxRand(-220, 220),
@@ -67,8 +74,8 @@ const fx = {
 };
 
 // Moving vehicles puff exhaust from their tailpipes every so often.
-function emitExhaust(dt) {
-  for (const lane of lanes) {
+export function emitExhaust(dt) {
+  for (const lane of G.lanes) {
     for (const c of lane.cars) {
       c.puff = (c.puff ?? fxRand(0, 0.4)) - dt;
       if (c.puff > 0) continue;
@@ -79,8 +86,8 @@ function emitExhaust(dt) {
   }
 }
 
-function updateEffects(dt) {
-  for (const p of particles) {
+export function updateEffects(dt) {
+  for (const p of G.particles) {
     if (p.delay > 0) { p.delay -= dt; continue; }      // not out yet (e.g. bus passengers taking turns)
     p.vx -= p.vx * Math.min(1, p.drag * dt);
     p.vy -= p.vy * Math.min(1, p.drag * dt);
@@ -91,12 +98,12 @@ function updateEffects(dt) {
     p.size += p.grow * dt;
     p.life -= dt;
   }
-  particles = particles.filter(p => p.life > 0);
-  if (shakeTime > 0) shakeTime -= dt;
+  G.particles = G.particles.filter(p => p.life > 0);
+  if (G.shakeTime > 0) G.shakeTime -= dt;
 }
 
-function drawParticles(under) {
-  for (const p of particles) {
+export function drawParticles(under) {
+  for (const p of G.particles) {
     if (p.under !== under || p.delay > 0) continue;
     ctx.globalAlpha = p.alpha * Math.min(1, p.life / p.max * 2);   // fade out over the second half of life
     ctx.fillStyle = p.color;
@@ -124,8 +131,8 @@ function drawParticles(under) {
 }
 
 // Random offset for the whole scene while a shake is active; fades out over its duration.
-function shakeOffset() {
-  if (shakeTime <= 0) return [0, 0];
-  const m = shakeMag * (shakeTime / shakeDuration);
+export function shakeOffset() {
+  if (G.shakeTime <= 0) return [0, 0];
+  const m = G.shakeMag * (G.shakeTime / G.shakeDuration);
   return [fxRand(-m, m), fxRand(-m, m)];
 }

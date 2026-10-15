@@ -1,4 +1,4 @@
-# Runs the game's test page (tests.html) in headless Chrome on every push and pull request.
+# Builds the game and runs its test page (tests.html) in headless Chrome on every push and pull request.
 name: Tests
 
 on:
@@ -11,6 +11,25 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Check the committed bundle is up to date
+        run: |
+          if ! git diff --quiet -- dist; then
+            echo "::error::dist/ is out of date — run 'npm run build' and commit the result."
+            git diff --stat -- dist
+            exit 1
+          fi
 
       - name: Run tests in headless Chrome
         run: tests/run.sh

@@ -1,15 +1,21 @@
 // ---------- Skins ----------
 // Unlocked by best score ever. Each draw(g, swing, now) paints the character centered at 0,0,
 // facing up (-y), about 24 px across; `swing` (-5…5) animates the walk.
+import { G } from './store.js';
+import { FINISH_H, W } from './config.js';
+import { sfx } from './sound.js';
+import { achievementCount, renderAchievements, toast, unlockAchievement } from './achievements.js';
+import { ctx, dpr } from './render.js';
+import { canPause, releaseKeys, setPaused } from './input.js';
 
-function ellipse(g, x, y, rx, ry, color) {
+export function ellipse(g, x, y, rx, ry, color) {
   g.fillStyle = color;
   g.beginPath();
   g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
   g.fill();
 }
 
-const SKINS = [
+export const SKINS = [
   {
     id: 'classic', name: 'Classic', score: 0,
     draw(g, swing) {
@@ -133,82 +139,82 @@ const SKINS = [
 ];
 
 // ---------- Unlocking & choosing ----------
-let skinId = (() => { try { return localStorage.getItem('roadCrossingSkin') || 'classic'; } catch { return 'classic'; } })();
-let banner = null;              // { text, t } — "New skin unlocked!" message shown during play
-let skinsUnlockedThisGame = [];
+G.skinId = (() => { try { return localStorage.getItem('roadCrossingSkin') || 'classic'; } catch { return 'classic'; } })();
+G.banner = null;              // { text, t } — "New skin unlocked!" message shown during play
+G.skinsUnlockedThisGame = [];
 
-const bestScore = () => Math.max(hiScore, score);
-const isUnlocked = skin => skin.score <= bestScore();
-const currentSkin = () => SKINS.find(s => s.id === skinId && isUnlocked(s)) || SKINS[0];
+export const bestScore = () => Math.max(G.hiScore, G.score);
+export const isUnlocked = skin => skin.score <= bestScore();
+export const currentSkin = () => SKINS.find(s => s.id === G.skinId && isUnlocked(s)) || SKINS[0];
 
-function chooseSkin(id) {
-  skinId = id;
+export function chooseSkin(id) {
+  G.skinId = id;
   if (id !== 'classic') unlockAchievement('style');
   try { localStorage.setItem('roadCrossingSkin', id); } catch {}
   renderSkinPicker();
 }
 
 // Called whenever the score grows: announce skins whose threshold was just passed for the first time.
-function checkSkinUnlocks(oldScore) {
+export function checkSkinUnlocks(oldScore) {
   for (const skin of SKINS) {
-    if (skin.score > hiScore && oldScore < skin.score && score >= skin.score) {
-      skinsUnlockedThisGame.push(skin.name);
+    if (skin.score > G.hiScore && oldScore < skin.score && G.score >= skin.score) {
+      G.skinsUnlockedThisGame.push(skin.name);
       toast(`🎉 New skin unlocked: ${skin.name}!`);
       sfx.levelUp();
     }
   }
 }
 
-function drawBanner() {
-  if (!banner) return;
-  banner.max ??= banner.t;                               // remember the full duration on first draw
-  const t = banner.t;
-  const slide = Math.min(1, (banner.max - t) * 5, t * 3);   // slide in, then out
+export function drawBanner() {
+  if (!G.banner) return;
+  G.banner.max ??= G.banner.t;                               // remember the full duration on first draw
+  const t = G.banner.t;
+  const slide = Math.min(1, (G.banner.max - t) * 5, t * 3);   // slide in, then out
   ctx.save();
   ctx.globalAlpha = slide;
   ctx.translate(W / 2, FINISH_H + 26 - (1 - slide) * 20);
   ctx.font = 'bold 16px system-ui, sans-serif';
-  const width = Math.min(W - 20, ctx.measureText(banner.text).width + 40);
+  const width = Math.min(W - 20, ctx.measureText(G.banner.text).width + 40);
   ctx.fillStyle = 'rgba(0,0,0,.7)';
   ctx.beginPath(); ctx.roundRect(-width / 2, -18, width, 36, 18); ctx.fill();
   ctx.fillStyle = '#ffe36e';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(banner.text, 0, 1);
+  ctx.fillText(G.banner.text, 0, 1);
   ctx.restore();
 }
 
 // ---------- Skins & achievements panel ----------
-const skinPanel = document.getElementById('skins');
-const skinGrid = document.getElementById('skinGrid');
-let panelTab = 'skins';           // 'skins' or 'achievements'
+export const skinPanel = document.getElementById('skins');
+export const skinGrid = document.getElementById('skinGrid');
+G.panelTab = 'skins';           // 'skins' or 'achievements'
 
-function skinPickerOpen() {
+export function skinPickerOpen() {
   return !skinPanel.hidden;
 }
 
-function openSkinPicker(tab = 'skins') {
+export function openSkinPicker(tab = 'skins') {
   if (canPause()) setPaused(true);
   releaseKeys();
-  panelTab = tab;
+  G.panelTab = tab;
   skinPanel.hidden = false;
   renderSkinPicker();
 }
 
-function closeSkinPicker() {
+export function closeSkinPicker() {
   skinPanel.hidden = true;
 }
 
 // Rebuilds the cards (cheap: a handful of buttons); previews are animated by drawSkinPreviews().
-function renderSkinPicker() {
+export function renderSkinPicker() {
   if (skinPanel.hidden) return;
-  for (const tab of document.querySelectorAll('.tab')) tab.classList.toggle('active', tab.dataset.tab === panelTab);
+  for (const tab of document.querySelectorAll('.tab')) tab.classList.toggle('active', tab.dataset.tab === G.panelTab);
   document.getElementById('achCount').textContent = achievementCount();
-  skinGrid.hidden = panelTab !== 'skins';
-  document.getElementById('achList').hidden = panelTab !== 'achievements';
-  document.getElementById('panelNote').textContent = panelTab === 'skins'
+  skinGrid.hidden = G.panelTab !== 'skins';
+  document.getElementById('achList').hidden = G.panelTab !== 'achievements';
+  document.getElementById('panelNote').textContent = G.panelTab === 'skins'
     ? 'Unlock more by reaching higher scores.' : 'Achievements are saved in this browser.';
-  if (panelTab === 'achievements') return renderAchievements();
+  if (G.panelTab === 'achievements') return renderAchievements();
   skinGrid.textContent = '';
   for (const skin of SKINS) {
     const unlocked = isUnlocked(skin);
@@ -228,7 +234,7 @@ function renderSkinPicker() {
   drawSkinPreviews(performance.now());
 }
 
-function drawSkinPreviews(now) {
+export function drawSkinPreviews(now) {
   if (skinPanel.hidden || skinGrid.hidden) return;
   for (const c of skinGrid.querySelectorAll('canvas')) {
     const skin = SKINS.find(s => s.id === c.dataset.skin);
@@ -243,8 +249,13 @@ function drawSkinPreviews(now) {
   }
 }
 
-document.getElementById('skinsClose').addEventListener('click', closeSkinPicker);
-for (const tab of document.querySelectorAll('.tab')) {
-  tab.addEventListener('click', () => { panelTab = tab.dataset.tab; renderSkinPicker(); });
+   // click outside the box
+
+// Wires up the skins & achievements panel (called once by main.js at start-up).
+export function initSkins() {
+  document.getElementById('skinsClose').addEventListener('click', closeSkinPicker);
+  for (const tab of document.querySelectorAll('.tab')) {
+    tab.addEventListener('click', () => { G.panelTab = tab.dataset.tab; renderSkinPicker(); });
+  }
+  skinPanel.addEventListener('click', e => { if (e.target === skinPanel) closeSkinPicker(); });
 }
-skinPanel.addEventListener('click', e => { if (e.target === skinPanel) closeSkinPicker(); });   // click outside the box
