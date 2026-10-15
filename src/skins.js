@@ -4,7 +4,7 @@
 import { G } from './store.js';
 import { FINISH_H, W } from './config.js';
 import { sfx } from './sound.js';
-import { achievementCount, renderAchievements, toast, unlockAchievement } from './achievements.js';
+import { ACHIEVEMENT_BY_ID, achievementCount, hasAchievement, renderAchievements, toast, unlockAchievement } from './achievements.js';
 import { ctx, dpr } from './render.js';
 import { canPause, releaseKeys, setPaused } from './input.js';
 
@@ -136,6 +136,138 @@ export const SKINS = [
       g.fillRect(-3.5, -6, 7, 1.6);
     },
   },
+  {
+    id: 'skater', name: 'Skater', score: 10000,
+    draw(g, swing) {
+      g.rotate(swing * 0.02);                                  // gentle sway on the board
+      g.fillStyle = '#8e44ad';                                 // the board, along the direction of travel
+      g.beginPath(); g.roundRect(-6, -15, 12, 30, 6); g.fill();
+      g.fillStyle = '#f1c40f';                                 // wheels
+      for (const [x, y] of [[-6, -10], [6, -10], [-6, 10], [6, 10]]) { g.beginPath(); g.arc(x, y, 2, 0, Math.PI * 2); g.fill(); }
+      ellipse(g, 0, -6, 3, 4, '#2c3e50');                      // feet, one in front of the other
+      ellipse(g, 0, 7, 3, 4, '#2c3e50');
+      ellipse(g, -12, 1, 3, 3, '#f0c08a');                     // arms out for balance
+      ellipse(g, 12, -1, 3, 3, '#f0c08a');
+      ellipse(g, 0, 0, 7, 10, '#e67e22');                      // standing sideways: shoulders along the board
+      ellipse(g, 0, 0, 5, 5, '#f0c08a');
+      ellipse(g, 0, 1, 5, 4, '#c0392b');                       // backwards cap
+    },
+  },
+  {
+    id: 'duck', name: 'Duck', score: 12500, previewScale: 1.15, previewY: 26,
+    draw(g, swing, now) {
+      for (let i = 0; i < 3; i++) {                            // ducklings waddling behind (decoration only)
+        const x = Math.sin(now / 170 + i * 1.7) * 2.5, y = 15 + i * 8;
+        ellipse(g, x, y, 3.2, 3.6, '#f7dc6f');
+        ellipse(g, x, y - 3.5, 1.2, 1, '#e67e22');
+      }
+      ellipse(g, -3.5, 2 + swing * 0.6, 2.5, 3.5, '#e67e22'); // orange feet
+      ellipse(g, 3.5, 2 - swing * 0.6, 2.5, 3.5, '#e67e22');
+      ellipse(g, 0, 2, 7.5, 10, '#8d6e63');                    // brown body
+      ellipse(g, -6, 3, 2.5, 6, '#6d4c41');                    // folded wings
+      ellipse(g, 6, 3, 2.5, 6, '#6d4c41');
+      ellipse(g, 0, -8, 4.5, 4.5, '#1e8449');                  // green head
+      g.fillStyle = '#f39c12';                                 // bill
+      g.beginPath(); g.roundRect(-2, -15, 4, 5, 2); g.fill();
+    },
+  },
+  {
+    id: 'astronaut', name: 'Astronaut', score: 15000,
+    draw(g, swing) {
+      g.fillStyle = '#95a5a6';                                 // life-support backpack
+      g.beginPath(); g.roundRect(-8, 3, 16, 9, 3); g.fill();
+      ellipse(g, -5, swing, 3.5, 6, '#7f8c8d');                // boots
+      ellipse(g, 5, -swing, 3.5, 6, '#7f8c8d');
+      ellipse(g, -11, -swing * 0.8, 3.2, 3.2, '#ecf0f1');      // gloves
+      ellipse(g, 11, swing * 0.8, 3.2, 3.2, '#ecf0f1');
+      ellipse(g, 0, 0, 11, 7.5, '#fdfefe');                    // suit
+      ellipse(g, 0, -1, 6.5, 6.5, '#ecf0f1');                  // helmet
+      g.fillStyle = '#f5b041';                                 // gold visor facing forward
+      g.beginPath(); g.ellipse(0, -4, 4.5, 2.6, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#e74c3c';                                 // mission patch
+      g.fillRect(6, -2, 2.5, 2.5);
+    },
+  },
+  {
+    id: 'penguin', name: 'Penguin', score: 17500,
+    draw(g, swing) {
+      g.rotate(swing * 0.04);                                  // the waddle
+      ellipse(g, -3, 3, 2.5, 3, '#f39c12');                    // feet
+      ellipse(g, 3, 3, 2.5, 3, '#f39c12');
+      const flap = Math.abs(swing) / 5;
+      ellipse(g, -8 - flap, 2, 2.5, 6.5, '#17202a');           // flippers
+      ellipse(g, 8 + flap, 2, 2.5, 6.5, '#17202a');
+      ellipse(g, 0, 1, 8, 10, '#1c2833');                      // body
+      ellipse(g, 0, -2, 5.5, 6.5, '#fdfefe');                  // white front
+      ellipse(g, 0, -6, 4.5, 4.5, '#1c2833');                  // head
+      g.fillStyle = '#f39c12';                                 // beak
+      g.beginPath(); g.moveTo(-1.5, -10); g.lineTo(1.5, -10); g.lineTo(0, -13); g.closePath(); g.fill();
+    },
+  },
+  {
+    id: 'knight', name: 'Knight', score: 20000,
+    draw(g, swing) {
+      g.strokeStyle = '#d5d8dc';                               // sword
+      g.lineWidth = 2;
+      g.beginPath(); g.moveTo(12, swing * 0.8); g.lineTo(12, -16 + swing * 0.8); g.stroke();
+      g.fillStyle = '#7d6608';
+      g.fillRect(9, -1 + swing * 0.8, 6, 2);
+      ellipse(g, -5, swing, 3.5, 6, '#566573');
+      ellipse(g, 5, -swing, 3.5, 6, '#566573');
+      ellipse(g, 0, 0, 11, 7.5, '#aab7b8');                    // armour
+      g.fillStyle = '#1f618d';                                 // shield with a cross
+      g.beginPath(); g.roundRect(-16, -6 - swing * 0.8, 7, 12, 2); g.fill();
+      g.fillStyle = '#f4d03f';
+      g.fillRect(-13.2, -5 - swing * 0.8, 1.4, 10);
+      g.fillRect(-15, -1 - swing * 0.8, 5, 1.4);
+      ellipse(g, 0, -1, 5.5, 5.5, '#839192');                  // helmet
+      g.fillStyle = '#1b2631';                                 // visor slit
+      g.fillRect(-3.5, -5.5, 7, 1.4);
+      ellipse(g, 0, 2, 1.8, 5, '#c0392b');                     // red plume
+    },
+  },
+  {
+    id: 'royal', name: 'Royal', achievement: 'tour',
+    draw(g, swing, now) {
+      const flow = Math.sin(now / 200) * 1.5;                  // flowing cape behind
+      g.fillStyle = '#6c3483';
+      g.beginPath(); g.moveTo(-10, 0); g.quadraticCurveTo(-12 + flow, 14, 0, 17); g.quadraticCurveTo(12 + flow, 14, 10, 0); g.closePath(); g.fill();
+      ellipse(g, -5, swing, 3.5, 6, '#2c3e50');
+      ellipse(g, 5, -swing, 3.5, 6, '#2c3e50');
+      ellipse(g, -11, -swing * 0.8, 3, 3, '#f0c08a');
+      ellipse(g, 11, swing * 0.8, 3, 3, '#f0c08a');
+      ellipse(g, 0, 0, 11, 7, '#922b21');                      // red robe
+      ellipse(g, 0, -1, 5.5, 5.5, '#f0c08a');
+      g.fillStyle = '#f4d03f';                                 // golden crown with points
+      g.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const a = i / 10 * Math.PI * 2, r = i % 2 ? 3.5 : 6;
+        g.lineTo(Math.cos(a) * r, -1 + Math.sin(a) * r);
+      }
+      g.closePath(); g.fill();
+      ellipse(g, 0, -1, 1.5, 1.5, '#e74c3c');                  // a ruby on top
+    },
+  },
+  {
+    id: 'ghost', name: 'Ghost', achievement: 'ghostTrain',
+    draw(g, swing, now) {
+      g.save();
+      g.globalAlpha *= 0.88;
+      g.fillStyle = '#fbfcfc';                                 // the sheet, with a wavy hem trailing behind
+      g.beginPath();
+      g.moveTo(-10, -2);
+      g.quadraticCurveTo(-10, -13, 0, -13);
+      g.quadraticCurveTo(10, -13, 10, -2);
+      for (let i = 0; i <= 4; i++) {
+        const x = 10 - i * 5, y = 11 + Math.sin(now / 120 + i) * 2.5;
+        g.lineTo(x, y);
+      }
+      g.closePath(); g.fill();
+      g.restore();
+      ellipse(g, -3, -7, 1.6, 2.4, '#2c3e50');                 // eyes looking forward
+      ellipse(g, 3, -7, 1.6, 2.4, '#2c3e50');
+    },
+  },
 ];
 
 // ---------- Unlocking & choosing ----------
@@ -144,7 +276,9 @@ G.banner = null;              // { text, t } — "New skin unlocked!" message sh
 G.skinsUnlockedThisGame = [];
 
 export const bestScore = () => Math.max(G.hiScore, G.score);
-export const isUnlocked = skin => skin.score <= bestScore();
+// Skins unlock at a best score, or (if they name one) with an achievement.
+export const isUnlocked = skin => (skin.achievement ? hasAchievement(skin.achievement) : skin.score <= bestScore());
+export const lockedLabel = skin => (skin.achievement ? `🔒 ${ACHIEVEMENT_BY_ID[skin.achievement].name}` : `🔒 ${skin.score.toLocaleString()} pts`);
 export const currentSkin = () => SKINS.find(s => s.id === G.skinId && isUnlocked(s)) || SKINS[0];
 
 export function chooseSkin(id) {
@@ -214,7 +348,7 @@ export function renderSkinPicker() {
   skinGrid.hidden = G.panelTab !== 'skins';
   document.getElementById('achList').hidden = G.panelTab !== 'achievements';
   document.getElementById('panelNote').textContent = G.panelTab === 'skins'
-    ? 'Unlock more by reaching higher scores.' : 'Achievements are saved in this browser.';
+    ? 'Unlock more with higher scores — and two with achievements.' : 'Achievements are saved in this browser.';
   if (G.panelTab === 'achievements') return renderAchievements();
   skinGrid.textContent = '';
   for (const skin of SKINS) {
@@ -227,7 +361,7 @@ export function renderSkinPicker() {
     preview.width = preview.height = 64 * dpr;
     preview.dataset.skin = skin.id;
     const label = document.createElement('span');
-    label.textContent = unlocked ? skin.name : `🔒 ${skin.score.toLocaleString()} pts`;
+    label.textContent = unlocked ? skin.name : lockedLabel(skin);
     card.append(preview, label);
     card.addEventListener('click', () => chooseSkin(skin.id));
     skinGrid.append(card);
@@ -242,8 +376,8 @@ export function drawSkinPreviews(now) {
     const g = c.getContext('2d');
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, 64, 64);
-    g.translate(32, 34);
-    g.scale(1.6, 1.6);
+    g.translate(32, skin.previewY ?? 34);
+    g.scale(skin.previewScale ?? 1.6, skin.previewScale ?? 1.6);
     if (!isUnlocked(skin)) g.filter = 'grayscale(1) brightness(0.5)';
     skin.draw(g, Math.sin(now / 130) * 5, now);
     g.filter = 'none';

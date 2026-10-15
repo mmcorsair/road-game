@@ -7,7 +7,7 @@ import { keys } from './state.js';
 import { sfx } from './sound.js';
 import { BOSSES } from './boss.js';
 import { PICKUP_TYPES } from './pickups.js';
-import { renderSkinPicker } from './skins.js';
+import { SKINS, renderSkinPicker } from './skins.js';
 import { todayKey } from './daily.js';
 import { vehicleAt } from './player.js';
 
@@ -69,6 +69,12 @@ export function unlockAchievement(id) {
   G.gameAch.earned.push(a.name);
   toast(`🏆 Achievement: ${a.name}`);
   sfx.achievement();
+  for (const skin of SKINS) {                            // some skins are unlocked by an achievement
+    if (skin.achievement === id) {
+      G.skinsUnlockedThisGame.push(skin.name);
+      toast(`🎉 New skin unlocked: ${skin.name}!`);
+    }
+  }
   renderSkinPicker();                                    // refresh the panel if it's open
 }
 

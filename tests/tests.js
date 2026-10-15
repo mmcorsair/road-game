@@ -14,7 +14,7 @@ import { LANE_CHANGERS, laneHooks, moveToLane } from '../src/lanechange.js';
 import { weatherFor } from '../src/weather.js';
 import { hitsCar } from '../src/player.js';
 import { PICKUP_TYPES, resetPickups } from '../src/pickups.js';
-import { SKINS, chooseSkin, closeSkinPicker, currentSkin, isUnlocked, openSkinPicker, skinPickerOpen } from '../src/skins.js';
+import { SKINS, chooseSkin, closeSkinPicker, currentSkin, drawSkinPreviews, isUnlocked, lockedLabel, openSkinPicker, skinPickerOpen } from '../src/skins.js';
 import { dailyShareText, hashString, seedRandomness, seededRandom, startDailyFromUI, todayKey } from '../src/daily.js';
 import { TIPS, TIP_SLOWMO, TIP_TIME, replayTips, tipTimeScale } from '../src/tutorial.js';
 import { ACHIEVEMENTS, achievementCount, hasAchievement, unlockAchievement } from '../src/achievements.js';
@@ -601,6 +601,39 @@ import { PRACTICE_LEVELS, closeLevelPicker, levelFeatures, levelPickerOpen, open
       eq(G.state, 'paused', 'Space ignored while open');
       dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
       assert(!skinPickerOpen(), 'closed');
+    });
+
+    test('the new score skins unlock at 10,000–20,000 points', () => {
+      G.hiScore = 0; G.score = 0;
+      const unlocked = () => SKINS.filter(isUnlocked).map(s => s.id);
+      G.hiScore = 12500;
+      assert(unlocked().includes('duck') && !unlocked().includes('astronaut'), unlocked().join());
+      G.hiScore = 20000;
+      for (const id of ['skater', 'duck', 'astronaut', 'penguin', 'knight']) assert(unlocked().includes(id), id);
+    });
+
+    test('achievement skins unlock with their achievement, and say so when locked', () => {
+      G.hiScore = 1e9;                           // a huge score is not enough for these two
+      const royal = SKINS.find(s => s.id === 'royal'), ghost = SKINS.find(s => s.id === 'ghost');
+      assert(!isUnlocked(royal) && !isUnlocked(ghost), 'locked despite the score');
+      eq(lockedLabel(royal), '🔒 Grand tour');
+      eq(lockedLabel(SKINS.find(s => s.id === 'knight')), '🔒 20,000 pts');
+      startPlaying();
+      unlockAchievement('ghostTrain');
+      assert(isUnlocked(ghost), 'ghost unlocked');
+      eq(G.skinsUnlockedThisGame.join(), 'Ghost', 'listed for the game-over screen');
+      assert([G.banner, ...G.toastQueue].some(b => b && b.text.includes('New skin unlocked: Ghost')), 'banner');
+      startPractice(15);
+      unlockAchievement('tour');                 // practice never unlocks anything
+      assert(!isUnlocked(royal), 'not in practice');
+    });
+
+    test('every skin draws without errors, and its panel preview too', () => {
+      eq(SKINS.length, 14);
+      G.hiScore = 1e9; G.achievements.unlocked.tour = G.achievements.unlocked.ghostTrain = 'x';
+      openSkinPicker('skins');
+      drawSkinPreviews(1234);
+      closeSkinPicker();
     });
 
     test('every skin draws without errors', () => {
