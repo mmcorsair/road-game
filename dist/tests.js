@@ -785,7 +785,7 @@
     }
     G.hiScore = 0;
     G.skinId = "classic";
-    G.achievements = { unlocked: {}, bonusKinds: [], bosses: [] };
+    G.achievements = { unlocked: {}, bonusKinds: [], bosses: [], dailyDays: [] };
     G.seenTips = /* @__PURE__ */ new Set();
     G.dailyStats = null;
     G.resetArmed = 0;
@@ -936,6 +936,7 @@
     }
     G.dailyStats = s;
     unlockAchievement("daily");
+    achOnDailyFinished(G.dailyDate);
   }
   function dailyShareText() {
     const s = G.dailyStats || loadDailyStats();
@@ -1461,6 +1462,48 @@ ${s.best.row}${url}`;
     });
   }
 
+  // src/player.js
+  function resetPlayer() {
+    G.player = {
+      x: W / 2,
+      y: H - START_H / 2,
+      angle: 0,
+      shownAngle: 0,
+      walk: 0,
+      lastStep: 0,
+      knockVx: 0,
+      spinRate: 0,
+      spin: 0
+    };
+  }
+  function honkAtPlayer() {
+    for (const lane of G.lanes) {
+      for (const c of lane.cars) {
+        if (Math.abs(vehicleY(c, lane) - G.player.y) > LANE_H / 2) continue;
+        const gap = (G.player.x - c.x) * lane.dir - c.w / 2 - PLAYER_SIZE / 2;
+        if (!c.honked && !["emergency", "train", "float", "roller"].includes(c.kind) && gap > 0 && gap < 70) {
+          c.honked = true;
+          sfx.honk((c.x - W / 2) / (W / 2));
+        }
+      }
+    }
+  }
+  function vehicleAt(x, y, moving) {
+    const s = PLAYER_SIZE / 2 - 3;
+    for (const lane of G.lanes) {
+      if (Math.abs(lane.y - y) > LANE_H) continue;
+      for (const c of lane.cars) {
+        if (c.v >= STOPPED_V !== moving) continue;
+        if (Math.abs(c.x - x) < c.w / 2 - 2 + s && Math.abs(vehicleY(c, lane) - y) < c.h / 2 - 2 + s) return { car: c, lane };
+      }
+    }
+    return null;
+  }
+  var blockedAt = (x, y) => !!vehicleAt(x, y, false);
+  function hitsCar() {
+    return vehicleAt(G.player.x, G.player.y, true);
+  }
+
   // src/achievements.js
   var ACHIEVEMENTS = [
     { id: "first", icon: "\u{1F463}", name: "First steps", desc: "Complete level 1." },
@@ -1481,20 +1524,28 @@ ${s.best.row}${url}`;
     { id: "daily", icon: "\u{1F4C5}", name: "Daily driver", desc: "Finish a daily challenge." },
     { id: "style", icon: "\u{1F455}", name: "New look", desc: "Wear a skin other than Classic." },
     { id: "boss", icon: "\u{1F451}", name: "Boss buster", desc: "Complete a boss level." },
-    { id: "tour", icon: "\u{1F5FA}", name: "Grand tour", desc: "Complete all three kinds of boss level." }
+    { id: "tour", icon: "\u{1F5FA}", name: "Grand tour", desc: "Complete all three kinds of boss level." },
+    { id: "ghostTrain", icon: "\u{1F47B}", name: "Ghost train", desc: "Let a train pass right through you as a ghost." },
+    { id: "magnet3", icon: "\u{1F9F2}", name: "Magnetic personality", desc: "Pull in 3 coins with a single magnet." },
+    { id: "sprinter", icon: "\u{1F4A8}", name: "Sprinter", desc: "Finish a crossing within 5 seconds." },
+    { id: "parade", icon: "\u{1F389}", name: "Float like a butterfly", desc: "Complete the Parade without losing a life." },
+    { id: "hardHat", icon: "\u{1F9BA}", name: "Hard hat", desc: "Complete Roadworks without losing a life." },
+    { id: "nightDrive", icon: "\u{1F303}", name: "Night drive", desc: "Complete the Highway at night." },
+    { id: "storm", icon: "\u26C8", name: "Storm chaser", desc: "Complete a rainy night level without losing a life." },
+    { id: "streak", icon: "\u{1F525}", name: "On a roll", desc: "Finish the daily challenge 3 days in a row." }
   ];
   var ACHIEVEMENT_BY_ID = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a]));
   var SCORE_ACHIEVEMENTS = [[1e3, "score1k"], [5e3, "score5k"], [1e4, "score10k"]];
   G.achievements = (() => {
     try {
       const s = JSON.parse(localStorage.getItem("roadCrossingAchievements"));
-      if (s && s.unlocked) return { unlocked: s.unlocked, bonusKinds: s.bonusKinds || [], bosses: s.bosses || [] };
+      if (s && s.unlocked) return { unlocked: s.unlocked, bonusKinds: s.bonusKinds || [], bosses: s.bosses || [], dailyDays: s.dailyDays || [] };
     } catch {
     }
-    return { unlocked: {}, bonusKinds: [], bosses: [] };
+    return { unlocked: {}, bonusKinds: [], bosses: [], dailyDays: [] };
   })();
   G.gameAch = { coins: 0, livesLost: 0, earned: [] };
-  G.levelAch = { livesLost: 0, still: 0, onTracks: false };
+  G.levelAch = { livesLost: 0, still: 0, onTracks: false, playTime: 0, magnetCoins: 0 };
   G.toastQueue = [];
   function saveAchievements() {
     try {
@@ -1525,19 +1576,22 @@ ${s.best.row}${url}`;
     achOnNewLevel();
   }
   function achOnNewLevel() {
-    G.levelAch = { livesLost: 0, still: 0, onTracks: false };
+    G.levelAch = { livesLost: 0, still: 0, onTracks: false, playTime: 0, magnetCoins: 0 };
   }
   function achOnLifeLost() {
     G.gameAch.livesLost++;
     G.levelAch.livesLost++;
     G.levelAch.onTracks = false;
+    G.levelAch.playTime = 0;
   }
   function achOnScore() {
     for (const [points, id] of SCORE_ACHIEVEMENTS) if (G.score >= points) unlockAchievement(id);
   }
-  function achOnPickup(type) {
+  function achOnPickup(type, p = {}) {
     if (G.mode === "practice") return;
     if (type === "coin" && ++G.gameAch.coins >= 5) unlockAchievement("coins");
+    if (type === "magnet") G.levelAch.magnetCoins = 0;
+    if (type === "coin" && p.pulled && ++G.levelAch.magnetCoins >= 3) unlockAchievement("magnet3");
     if (!G.achievements.bonusKinds.includes(type)) {
       G.achievements.bonusKinds.push(type);
       saveAchievements();
@@ -1554,6 +1608,12 @@ ${s.best.row}${url}`;
     if (G.level + 1 >= 6 && G.gameAch.livesLost === 0) unlockAchievement("flawless");
     if (G.level + 1 >= 5) unlockAchievement("level5");
     if (G.level + 1 >= 10) unlockAchievement("level10");
+    const clean = G.levelAch.livesLost === 0;
+    if (G.levelAch.playTime <= 5) unlockAchievement("sprinter");
+    if (G.boss === "parade" && clean) unlockAchievement("parade");
+    if (G.boss === "roadworks" && clean) unlockAchievement("hardHat");
+    if (G.boss === "highway" && G.weather.night) unlockAchievement("nightDrive");
+    if (G.weather.rain && G.weather.night && clean) unlockAchievement("storm");
     if (G.boss) {
       unlockAchievement("boss");
       (_a = G.achievements).bosses ?? (_a.bosses = []);
@@ -1565,7 +1625,12 @@ ${s.best.row}${url}`;
     }
   }
   function achUpdate(dt) {
+    G.levelAch.playTime += dt;
     if (!keys.up && !keys.down && !keys.left && !keys.right) G.levelAch.still += dt;
+    if (G.ghostTimer > 0) {
+      const v = vehicleAt(G.player.x, G.player.y, true);
+      if (v && v.car.kind === "train") unlockAchievement("ghostTrain");
+    }
     const onActiveTracks = G.lanes.some((l) => l.rail && l.rail.phase !== "idle" && Math.abs(G.player.y - l.y) < LANE_H / 2);
     if (onActiveTracks) G.levelAch.onTracks = true;
     else if (G.levelAch.onTracks && !G.lanes.some((l) => l.rail && Math.abs(G.player.y - l.y) < LANE_H / 2)) {
@@ -1600,6 +1665,21 @@ ${s.best.row}${url}`;
   }
   function achievementCount() {
     return `${ACHIEVEMENTS.filter((a) => hasAchievement(a.id)).length}/${ACHIEVEMENTS.length}`;
+  }
+  function achOnDailyFinished(date) {
+    var _a;
+    if (G.mode === "practice") return;
+    const days = (_a = G.achievements).dailyDays ?? (_a.dailyDays = []);
+    if (!days.includes(date)) {
+      days.push(date);
+      days.sort();
+      if (days.length > 30) days.splice(0, days.length - 30);
+      saveAchievements();
+    }
+    const dayNumber = (d) => Math.round(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 864e5);
+    const today = dayNumber(date);
+    const have = new Set(days.map(dayNumber));
+    if (have.has(today - 1) && have.has(today - 2)) unlockAchievement("streak");
   }
 
   // src/pickups.js
@@ -1709,7 +1789,7 @@ ${s.best.row}${url}`;
     }
     fx.sparkle(p.x, p.y, PICKUP_TYPES[p.type].color);
     sfx.pickup(p.type);
-    achOnPickup(p.type);
+    achOnPickup(p.type, p);
   }
   function breakShield(hit) {
     G.player.shield = false;
@@ -3200,48 +3280,6 @@ ${s.best.row}${url}`;
     return [fxRand(-m, m), fxRand(-m, m)];
   }
 
-  // src/player.js
-  function resetPlayer() {
-    G.player = {
-      x: W / 2,
-      y: H - START_H / 2,
-      angle: 0,
-      shownAngle: 0,
-      walk: 0,
-      lastStep: 0,
-      knockVx: 0,
-      spinRate: 0,
-      spin: 0
-    };
-  }
-  function honkAtPlayer() {
-    for (const lane of G.lanes) {
-      for (const c of lane.cars) {
-        if (Math.abs(vehicleY(c, lane) - G.player.y) > LANE_H / 2) continue;
-        const gap = (G.player.x - c.x) * lane.dir - c.w / 2 - PLAYER_SIZE / 2;
-        if (!c.honked && !["emergency", "train", "float", "roller"].includes(c.kind) && gap > 0 && gap < 70) {
-          c.honked = true;
-          sfx.honk((c.x - W / 2) / (W / 2));
-        }
-      }
-    }
-  }
-  function vehicleAt(x, y, moving) {
-    const s = PLAYER_SIZE / 2 - 3;
-    for (const lane of G.lanes) {
-      if (Math.abs(lane.y - y) > LANE_H) continue;
-      for (const c of lane.cars) {
-        if (c.v >= STOPPED_V !== moving) continue;
-        if (Math.abs(c.x - x) < c.w / 2 - 2 + s && Math.abs(vehicleY(c, lane) - y) < c.h / 2 - 2 + s) return { car: c, lane };
-      }
-    }
-    return null;
-  }
-  var blockedAt = (x, y) => !!vehicleAt(x, y, false);
-  function hitsCar() {
-    return vehicleAt(G.player.x, G.player.y, true);
-  }
-
   // src/game.js
   function newGame(newMode = "normal", startLevel = 1) {
     G.mode = newMode;
@@ -3965,7 +4003,7 @@ ${s.best.row}${url}`;
       G.banner = null;
       G.particles = [];
       G.popups = [];
-      G.achievements = { unlocked: {}, bonusKinds: [], bosses: [] };
+      G.achievements = { unlocked: {}, bonusKinds: [], bosses: [], dailyDays: [] };
       G.toastQueue = [];
       G.settings = { ...DEFAULT_SETTINGS };
       if (menuOpen()) closeMenu(false);
@@ -4848,11 +4886,11 @@ ${s.best.row}${url}`;
         hold("up", false);
         eq(G.state, "levelup");
       }
-      test("completing level 1 quickly and without stopping earns three achievements", () => {
+      test("completing level 1 quickly and without stopping earns four achievements", () => {
         startPlaying();
         crossLevel();
-        for (const id of ["first", "nonstop", "speedy"]) assert(hasAchievement(id), id);
-        eq(G.gameAch.earned.length, 3);
+        for (const id of ["first", "nonstop", "speedy", "sprinter"]) assert(hasAchievement(id), id);
+        eq(G.gameAch.earned.length, 4);
       });
       test("stopping on the way, or finishing slowly, does not count", () => {
         startPlaying();
@@ -4959,6 +4997,103 @@ ${s.best.row}${url}`;
         assert(saved.unlocked.daily && saved.unlocked.style, "saved");
         const banners = [G.banner, ...G.toastQueue].filter((b) => b && b.text.startsWith("\u{1F3C6}"));
         eq(banners.length, 2, "one banner each, queued");
+      });
+      test("Sprinter needs a crossing within 5 seconds", () => {
+        startPlaying();
+        quietRoad();
+        run(2, onSidewalk);
+        crossLevel();
+        assert(!hasAchievement("sprinter"), "too slow");
+      });
+      test("Ghost train: a train passes through a ghost \u2014 not without the ghost", () => {
+        const trainOver = (ghost) => {
+          startPlaying({ lvl: RAIL_LEVEL });
+          const R = G.lanes.find((l) => l.rail);
+          for (const l of G.lanes) l.cars = [];
+          Object.assign(R.rail, { phase: "warning", timer: 0.01 });
+          G.player.x = W / 2;
+          G.player.y = R.y;
+          if (ghost) {
+            G.pickups = [{ type: "ghost", x: G.player.x, y: G.player.y, t: 5, age: 1 }];
+            run(DT);
+          }
+          run(1.5, () => {
+            G.timeLeft = TIME_LIMIT;
+            return G.state === "playing";
+          });
+        };
+        trainOver(false);
+        assert(!hasAchievement("ghostTrain") && G.state === "hit", "hit without the ghost");
+        trainOver(true);
+        assert(hasAchievement("ghostTrain"), "ghost train");
+      });
+      test("Magnetic personality: 3 coins pulled in by one magnet", () => {
+        startPlaying();
+        quietRoad();
+        const grab = (type) => {
+          G.pickups = [{ type, x: G.player.x, y: G.player.y, t: 5, age: 1 }];
+          run(DT);
+        };
+        const coinsNearby = (n) => {
+          G.pickups = Array.from({ length: n }, (_, i) => ({ type: "coin", x: G.player.x + 60 + i * 15, y: G.player.y, t: 8, age: 1 }));
+          run(1.5, () => {
+            G.timeLeft = TIME_LIMIT;
+          });
+        };
+        grab("magnet");
+        coinsNearby(2);
+        assert(!hasAchievement("magnet3"), "only 2");
+        grab("magnet");
+        coinsNearby(2);
+        assert(!hasAchievement("magnet3"), "counting restarts per magnet");
+        coinsNearby(1);
+        assert(hasAchievement("magnet3"), "3 with one magnet");
+      });
+      test("boss and weather achievements: Parade, Roadworks, Highway at night, rainy night", () => {
+        startPlaying({ lvl: 5 });
+        loseLife("time");
+        run(1.5);
+        crossLevel();
+        assert(!hasAchievement("parade"), "parade, but a life was lost");
+        startPlaying({ lvl: 5 });
+        crossLevel();
+        assert(hasAchievement("parade"), "parade without losing a life");
+        startPlaying({ lvl: 15 });
+        crossLevel();
+        assert(hasAchievement("hardHat"), "roadworks");
+        eq(G.weather.night, true, "level 15 is a rainy night");
+        assert(hasAchievement("storm"), "storm chaser");
+        startPlaying({ lvl: 10 });
+        crossLevel();
+        eq(G.weather.night, true, "the level 10 highway is at night");
+        assert(hasAchievement("nightDrive"), "night drive");
+      });
+      test("On a roll: the daily challenge three days in a row", () => {
+        const finishOn = (date) => {
+          G.todayOverride = date;
+          startPlaying({ daily: true });
+          quietRoad();
+          G.lives = 1;
+          G.timeLeft = 0.01;
+          run(1.5);
+        };
+        try {
+          finishOn("2026-03-30");
+          finishOn("2026-04-01");
+          assert(!hasAchievement("streak"), "not with a gap");
+          finishOn("2026-04-02");
+          assert(!hasAchievement("streak"), "only two in a row");
+          finishOn("2026-04-03");
+          assert(hasAchievement("streak"), "three in a row");
+          G.achievements.unlocked = {};
+          G.achievements.dailyDays = [];
+          finishOn("2026-03-30");
+          finishOn("2026-03-31");
+          finishOn("2026-04-01");
+          assert(hasAchievement("streak"), "across the end of a month");
+        } finally {
+          G.todayOverride = null;
+        }
       });
       test("the achievements tab renders and counts", () => {
         unlockAchievement("first");

@@ -124,7 +124,7 @@ export function collectPickup(p) {
   }
   fx.sparkle(p.x, p.y, PICKUP_TYPES[p.type].color);
   sfx.pickup(p.type);
-  achOnPickup(p.type);
+  achOnPickup(p.type, p);
 }
 
 // The shield takes the hit instead of the player, then gives a moment of safety to get clear.

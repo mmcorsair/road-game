@@ -88,7 +88,7 @@ export function resetProgress() {
   }
   G.hiScore = 0;
   G.skinId = 'classic';
-  G.achievements = { unlocked: {}, bonusKinds: [], bosses: [] };
+  G.achievements = { unlocked: {}, bonusKinds: [], bosses: [], dailyDays: [] };
   G.seenTips = new Set();
   G.dailyStats = null;
   G.resetArmed = 0;

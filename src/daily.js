@@ -4,7 +4,7 @@
 // how long levels 1–3 took. Retries are allowed; the day's best result can be shared, Wordle-style.
 import { G } from './store.js';
 import { sound } from './sound.js';
-import { unlockAchievement } from './achievements.js';
+import { achOnDailyFinished, unlockAchievement } from './achievements.js';
 import { gameInProgress } from './menu.js';
 import { newGame } from './game.js';
 
@@ -79,6 +79,7 @@ export function finishDaily() {
   try { localStorage.setItem('roadCrossingDaily', JSON.stringify(s)); } catch {}
   G.dailyStats = s;
   unlockAchievement('daily');
+  achOnDailyFinished(G.dailyDate);
 }
 
 export function dailyShareText() {

@@ -95,7 +95,7 @@ import { PRACTICE_LEVELS, closeLevelPicker, levelFeatures, levelPickerOpen, open
     G.banner = null;
     G.particles = [];
     G.popups = [];
-    G.achievements = { unlocked: {}, bonusKinds: [], bosses: [] };
+    G.achievements = { unlocked: {}, bonusKinds: [], bosses: [], dailyDays: [] };
     G.toastQueue = [];
     G.settings = { ...DEFAULT_SETTINGS };      // the player's own settings must not affect results
     if (menuOpen()) closeMenu(false);
@@ -920,11 +920,11 @@ import { PRACTICE_LEVELS, closeLevelPicker, levelFeatures, levelPickerOpen, open
       eq(G.state, 'levelup');
     }
 
-    test('completing level 1 quickly and without stopping earns three achievements', () => {
+    test('completing level 1 quickly and without stopping earns four achievements', () => {
       startPlaying();
       crossLevel();
-      for (const id of ['first', 'nonstop', 'speedy']) assert(hasAchievement(id), id);
-      eq(G.gameAch.earned.length, 3);
+      for (const id of ['first', 'nonstop', 'speedy', 'sprinter']) assert(hasAchievement(id), id);
+      eq(G.gameAch.earned.length, 4);
     });
 
     test('stopping on the way, or finishing slowly, does not count', () => {
@@ -1019,6 +1019,80 @@ import { PRACTICE_LEVELS, closeLevelPicker, levelFeatures, levelPickerOpen, open
       assert(saved.unlocked.daily && saved.unlocked.style, 'saved');
       const banners = [G.banner, ...G.toastQueue].filter(b => b && b.text.startsWith('🏆'));
       eq(banners.length, 2, 'one banner each, queued');
+    });
+
+    test('Sprinter needs a crossing within 5 seconds', () => {
+      startPlaying(); quietRoad();
+      run(2, onSidewalk);                        // dawdling first
+      crossLevel();
+      assert(!hasAchievement('sprinter'), 'too slow');
+    });
+
+    test('Ghost train: a train passes through a ghost — not without the ghost', () => {
+      const trainOver = ghost => {
+        startPlaying({ lvl: RAIL_LEVEL });
+        const R = G.lanes.find(l => l.rail);
+        for (const l of G.lanes) l.cars = [];
+        Object.assign(R.rail, { phase: 'warning', timer: 0.01 });
+        G.player.x = W / 2; G.player.y = R.y;
+        if (ghost) { G.pickups = [{ type: 'ghost', x: G.player.x, y: G.player.y, t: 5, age: 1 }]; run(DT); }
+        run(1.5, () => { G.timeLeft = TIME_LIMIT; return G.state === 'playing'; });
+      };
+      trainOver(false);
+      assert(!hasAchievement('ghostTrain') && G.state === 'hit', 'hit without the ghost');
+      trainOver(true);
+      assert(hasAchievement('ghostTrain'), 'ghost train');
+    });
+
+    test('Magnetic personality: 3 coins pulled in by one magnet', () => {
+      startPlaying(); quietRoad();
+      const grab = type => { G.pickups = [{ type, x: G.player.x, y: G.player.y, t: 5, age: 1 }]; run(DT); };
+      const coinsNearby = n => {
+        G.pickups = Array.from({ length: n }, (_, i) => ({ type: 'coin', x: G.player.x + 60 + i * 15, y: G.player.y, t: 8, age: 1 }));
+        run(1.5, () => { G.timeLeft = TIME_LIMIT; });
+      };
+      grab('magnet'); coinsNearby(2);
+      assert(!hasAchievement('magnet3'), 'only 2');
+      grab('magnet'); coinsNearby(2);              // a new magnet starts counting again
+      assert(!hasAchievement('magnet3'), 'counting restarts per magnet');
+      coinsNearby(1);
+      assert(hasAchievement('magnet3'), '3 with one magnet');
+    });
+
+    test('boss and weather achievements: Parade, Roadworks, Highway at night, rainy night', () => {
+      startPlaying({ lvl: 5 }); loseLife('time'); run(1.5); crossLevel();
+      assert(!hasAchievement('parade'), 'parade, but a life was lost');
+      startPlaying({ lvl: 5 }); crossLevel();
+      assert(hasAchievement('parade'), 'parade without losing a life');
+      startPlaying({ lvl: 15 }); crossLevel();
+      assert(hasAchievement('hardHat'), 'roadworks');
+      eq(G.weather.night, true, 'level 15 is a rainy night');
+      assert(hasAchievement('storm'), 'storm chaser');
+      startPlaying({ lvl: 10 }); crossLevel();
+      eq(G.weather.night, true, 'the level 10 highway is at night');
+      assert(hasAchievement('nightDrive'), 'night drive');
+    });
+
+    test('On a roll: the daily challenge three days in a row', () => {
+      const finishOn = date => {
+        G.todayOverride = date;
+        startPlaying({ daily: true }); quietRoad();
+        G.lives = 1; G.timeLeft = 0.01;
+        run(1.5);
+      };
+      try {
+        finishOn('2026-03-30'); finishOn('2026-04-01');      // a gap
+        assert(!hasAchievement('streak'), 'not with a gap');
+        finishOn('2026-04-02');
+        assert(!hasAchievement('streak'), 'only two in a row');
+        finishOn('2026-04-03');                               // 1st, 2nd, 3rd across a month end check below
+        assert(hasAchievement('streak'), 'three in a row');
+        G.achievements.unlocked = {}; G.achievements.dailyDays = [];
+        finishOn('2026-03-30'); finishOn('2026-03-31'); finishOn('2026-04-01');
+        assert(hasAchievement('streak'), 'across the end of a month');
+      } finally {
+        G.todayOverride = null;
+      }
     });
 
     test('the achievements tab renders and counts', () => {

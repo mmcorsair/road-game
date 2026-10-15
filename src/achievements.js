@@ -9,6 +9,7 @@ import { BOSSES } from './boss.js';
 import { PICKUP_TYPES } from './pickups.js';
 import { renderSkinPicker } from './skins.js';
 import { todayKey } from './daily.js';
+import { vehicleAt } from './player.js';
 
 export const ACHIEVEMENTS = [
   { id: 'first',    icon: '👣', name: 'First steps',         desc: 'Complete level 1.' },
@@ -30,6 +31,14 @@ export const ACHIEVEMENTS = [
   { id: 'style',    icon: '👕', name: 'New look',            desc: 'Wear a skin other than Classic.' },
   { id: 'boss',     icon: '👑', name: 'Boss buster',         desc: 'Complete a boss level.' },
   { id: 'tour',     icon: '🗺', name: 'Grand tour',          desc: 'Complete all three kinds of boss level.' },
+  { id: 'ghostTrain', icon: '👻', name: 'Ghost train',       desc: 'Let a train pass right through you as a ghost.' },
+  { id: 'magnet3',  icon: '🧲', name: 'Magnetic personality', desc: 'Pull in 3 coins with a single magnet.' },
+  { id: 'sprinter', icon: '💨', name: 'Sprinter',            desc: 'Finish a crossing within 5 seconds.' },
+  { id: 'parade',   icon: '🎉', name: 'Float like a butterfly', desc: 'Complete the Parade without losing a life.' },
+  { id: 'hardHat',  icon: '🦺', name: 'Hard hat',            desc: 'Complete Roadworks without losing a life.' },
+  { id: 'nightDrive', icon: '🌃', name: 'Night drive',       desc: 'Complete the Highway at night.' },
+  { id: 'storm',    icon: '⛈', name: 'Storm chaser',        desc: 'Complete a rainy night level without losing a life.' },
+  { id: 'streak',   icon: '🔥', name: 'On a roll',           desc: 'Finish the daily challenge 3 days in a row.' },
 ];
 export const ACHIEVEMENT_BY_ID = Object.fromEntries(ACHIEVEMENTS.map(a => [a.id, a]));
 export const SCORE_ACHIEVEMENTS = [[1000, 'score1k'], [5000, 'score5k'], [10000, 'score10k']];
@@ -38,12 +47,12 @@ export const SCORE_ACHIEVEMENTS = [[1000, 'score1k'], [5000, 'score5k'], [10000,
 G.achievements = (() => {
   try {
     const s = JSON.parse(localStorage.getItem('roadCrossingAchievements'));
-    if (s && s.unlocked) return { unlocked: s.unlocked, bonusKinds: s.bonusKinds || [], bosses: s.bosses || [] };
+    if (s && s.unlocked) return { unlocked: s.unlocked, bonusKinds: s.bonusKinds || [], bosses: s.bosses || [], dailyDays: s.dailyDays || [] };
   } catch {}
-  return { unlocked: {}, bonusKinds: [], bosses: [] };
+  return { unlocked: {}, bonusKinds: [], bosses: [], dailyDays: [] };
 })();
 G.gameAch = { coins: 0, livesLost: 0, earned: [] };          // this game
-G.levelAch = { livesLost: 0, still: 0, onTracks: false };    // this level
+G.levelAch = { livesLost: 0, still: 0, onTracks: false, playTime: 0, magnetCoins: 0 };    // this level
 G.toastQueue = [];
 
 export function saveAchievements() {
@@ -79,22 +88,26 @@ export function achOnNewGame() {
 }
 
 export function achOnNewLevel() {
-  G.levelAch = { livesLost: 0, still: 0, onTracks: false };
+  G.levelAch = { livesLost: 0, still: 0, onTracks: false, playTime: 0, magnetCoins: 0 };
 }
 
 export function achOnLifeLost() {
   G.gameAch.livesLost++;
   G.levelAch.livesLost++;
   G.levelAch.onTracks = false;                             // getting hit on the tracks doesn't count
+  G.levelAch.playTime = 0;                                 // a new attempt starts the sprint clock again
 }
 
 export function achOnScore() {
   for (const [points, id] of SCORE_ACHIEVEMENTS) if (G.score >= points) unlockAchievement(id);
 }
 
-export function achOnPickup(type) {
+// `p` is the pickup collected; magnet-pulled coins are marked p.pulled.
+export function achOnPickup(type, p = {}) {
   if (G.mode === 'practice') return;
   if (type === 'coin' && ++G.gameAch.coins >= 5) unlockAchievement('coins');
+  if (type === 'magnet') G.levelAch.magnetCoins = 0;     // counting starts with each new magnet
+  if (type === 'coin' && p.pulled && ++G.levelAch.magnetCoins >= 3) unlockAchievement('magnet3');
   if (!G.achievements.bonusKinds.includes(type)) {
     G.achievements.bonusKinds.push(type);
     saveAchievements();
@@ -112,6 +125,12 @@ export function achOnLevelComplete() {
   if (G.level + 1 >= 6 && G.gameAch.livesLost === 0) unlockAchievement('flawless');
   if (G.level + 1 >= 5) unlockAchievement('level5');
   if (G.level + 1 >= 10) unlockAchievement('level10');
+  const clean = G.levelAch.livesLost === 0;
+  if (G.levelAch.playTime <= 5) unlockAchievement('sprinter');
+  if (G.boss === 'parade' && clean) unlockAchievement('parade');
+  if (G.boss === 'roadworks' && clean) unlockAchievement('hardHat');
+  if (G.boss === 'highway' && G.weather.night) unlockAchievement('nightDrive');
+  if (G.weather.rain && G.weather.night && clean) unlockAchievement('storm');
   if (G.boss) {
     unlockAchievement('boss');
     G.achievements.bosses ??= [];
@@ -125,7 +144,12 @@ export function achOnLevelComplete() {
 
 // Every playing step: time spent standing still, and crossing tracks while the lights flash.
 export function achUpdate(dt) {
+  G.levelAch.playTime += dt;
   if (!keys.up && !keys.down && !keys.left && !keys.right) G.levelAch.still += dt;
+  if (G.ghostTimer > 0) {                                // a train passing through a ghost
+    const v = vehicleAt(G.player.x, G.player.y, true);
+    if (v && v.car.kind === 'train') unlockAchievement('ghostTrain');
+  }
   const onActiveTracks = G.lanes.some(l => l.rail && l.rail.phase !== 'idle' && Math.abs(G.player.y - l.y) < LANE_H / 2);
   if (onActiveTracks) G.levelAch.onTracks = true;
   else if (G.levelAch.onTracks && !G.lanes.some(l => l.rail && Math.abs(G.player.y - l.y) < LANE_H / 2)) {
@@ -164,4 +188,20 @@ export function renderAchievements() {
 
 export function achievementCount() {
   return `${ACHIEVEMENTS.filter(a => hasAchievement(a.id)).length}/${ACHIEVEMENTS.length}`;
+}
+
+// Called when a daily challenge is finished: three different days in a row earns "On a roll".
+export function achOnDailyFinished(date) {
+  if (G.mode === 'practice') return;
+  const days = (G.achievements.dailyDays ??= []);
+  if (!days.includes(date)) {
+    days.push(date);
+    days.sort();
+    if (days.length > 30) days.splice(0, days.length - 30);
+    saveAchievements();
+  }
+  const dayNumber = d => Math.round(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 86400000);
+  const today = dayNumber(date);
+  const have = new Set(days.map(dayNumber));
+  if (have.has(today - 1) && have.has(today - 2)) unlockAchievement('streak');
 }
