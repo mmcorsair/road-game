@@ -8,6 +8,7 @@ import { bossFor, bossGapMul, bossSpeedMul, makeFloat, nextParadeGap, setupBoss,
 import { animateLaneChange, updateLaneChanges } from './lanechange.js';
 import { brakeDecel, followDist, setupWeatherScene, updateSkid, weatherFor } from './weather.js';
 import { seedRandomness } from './daily.js';
+import { endlessWeather, isEndless } from './endless.js';
 
 export function pickGap() {
   const base = Math.max(120, 250 - G.level * 15) * bossGapMul();
@@ -54,9 +55,9 @@ export function spawnVehicle(lane, kind) {
 export function buildLanes() {
   silenceSiren();
   seedRandomness();                // the daily challenge makes every level's traffic the same for everyone
-  G.weather = weatherFor(G.level);
+  G.weather = isEndless() ? endlessWeather() : weatherFor(G.level);
   setupWeatherScene();
-  G.boss = bossFor(G.level);
+  G.boss = isEndless() ? null : bossFor(G.level);   // no bosses in endless mode
   G.lanes = [];
   G.emergencyTimer = rand(EMERGENCY_MIN, EMERGENCY_MAX) / 2;
   const speedMul = (1 + 0.18 * (G.level - 1)) * bossSpeedMul();

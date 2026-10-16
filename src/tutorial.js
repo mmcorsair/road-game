@@ -17,6 +17,7 @@ export const TIPS = {
   parade:   { icon: '🎉', text: 'BOSS: the Parade! Floats fill the lanes by the median — slip through a gap, rest on the grass, then the next.' },
   highway:  { icon: '🛣', text: 'BOSS: the Highway! Everything is fast and changes lanes a lot. Wait for a really big gap.' },
   roadworks: { icon: '🚧', text: 'BOSS: Roadworks! Closed lanes are free of traffic, but rubble slows you — and watch the steamroller.' },
+  endless:  { icon: '♾️', text: 'Endless: one life, and every road gets a little faster. How far can you go?' },
   rain:     { icon: '🌧', text: 'Rain: wet brakes slip, so cars slide when they stop. Give them extra room.' },
   night:    { icon: '🌙', text: 'Night: watch for headlights. Street lamps light the safe spots.' },
   bus:      { icon: '🚌', text: 'A bus stops to let passengers off. Cars swerve around it — watch the next lane!' },
@@ -95,6 +96,7 @@ export function updateTips(dt) {
     if (Math.hypot(G.player.x - G.activeTip.from.x, G.player.y - G.activeTip.from.y) > 40) dismissTip();
   }
   if (G.boss) showTip(G.boss);
+  if (G.mode === 'endless') showTip('endless');
   if (G.weather.rain) showTip('rain');
   if (G.weather.night) showTip('night');
   if (G.state !== 'playing') return;

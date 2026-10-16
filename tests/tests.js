@@ -24,6 +24,7 @@ import { canvas, ctx, dpr, draw, setRenderScale } from '../src/render.js';
 import { buttons, drag, keyboard, releaseKeys, setPaused, syncKeys } from '../src/input.js';
 import { watchFrameRate } from '../src/main.js';
 import { PRACTICE_LEVELS, closeLevelPicker, levelFeatures, levelPickerOpen, openLevelPicker, startPractice } from '../src/practice.js';
+import { ENDLESS_PAUSE, endlessLanesCrossed, endlessLevel } from '../src/endless.js';
 
 (() => {
   // ---------- Tiny test runner ----------
@@ -1468,6 +1469,90 @@ import { PRACTICE_LEVELS, closeLevelPicker, levelFeatures, levelPickerOpen, open
       openMenu();
       eq(document.getElementById('mPractice').disabled, true, 'menu button disabled during a game');
       closeMenu();
+    });
+  });
+
+  // ================================================================
+  describe('Endless mode', () => {
+    const key = k => dispatchEvent(new KeyboardEvent('keydown', { key: k }));
+    // Walk the player across the current road; returns once they reach the finish.
+    function crossRoad() {
+      quietRoad();
+      G.player.x = W / 2; G.player.y = H - START_H / 2;
+      hold('up');
+      run(10, () => G.state === 'playing');
+      hold('up', false);
+    }
+    const startEndless = () => { newGame('endless'); run(COUNTDOWN_STEP * 3 + 0.1); };
+
+    test('a run starts with one life and counts lanes, not points', () => {
+      startEndless();
+      eq(G.mode, 'endless');
+      eq(G.lives, 1);
+      eq(G.state, 'playing');
+      crossRoad();
+      eq(G.endless.lanes, 10, 'ten lanes on the first road');
+      eq(G.endless.roads, 1);
+    });
+
+    test('each finish leads straight to a new road — no countdown — getting harder every two roads', () => {
+      startEndless();
+      for (let road = 1; road <= 6; road++) {
+        crossRoad();
+        eq(G.state, 'levelup', `road ${road} crossed`);
+        run(ENDLESS_PAUSE + 0.05);
+        eq(G.state, 'playing', 'straight back to playing');
+        eq(G.level, endlessLevel(road), 'difficulty');
+        eq(G.boss, null, 'never a boss');
+      }
+      eq(G.level, 4, 'six roads in: difficulty of level 4');
+      eq(G.endless.lanes, 60);
+    });
+
+    test('game over saves the best distance — not the normal high score, and no skins', () => {
+      G.hiScore = 250; saveHiScore();
+      localStorage.removeItem('roadCrossingEndlessBest');
+      G.endlessBest = 0;
+      startEndless();
+      crossRoad(); run(ENDLESS_PAUSE + 0.05);
+      G.score = 9999;                            // would beat the normal high score and unlock skins
+      loseLife('time'); run(1.5);
+      eq(G.state, 'gameover');
+      eq(G.endlessBest, 10);
+      eq(G.newEndlessBest, true);
+      eq(localStorage.getItem('roadCrossingEndlessBest'), '10');
+      eq(G.hiScore, 250, 'normal high score untouched');
+      eq(G.skinsUnlockedThisGame.length, 0);
+      key(' ');
+      eq(G.mode, 'endless', 'Space starts another run');
+      eq(G.endless.lanes, 0);
+    });
+
+    test('Long walk and Marathon', () => {
+      startEndless();
+      endlessLanesCrossed(24);
+      assert(!hasAchievement('walk25'));
+      endlessLanesCrossed(1);
+      assert(hasAchievement('walk25') && !hasAchievement('marathon'));
+      endlessLanesCrossed(75);
+      assert(hasAchievement('marathon'));
+    });
+
+    test('E starts a run from the title screen; the menu offers it only between games', () => {
+      G.state = 'title';
+      key('e');
+      eq(G.mode, 'endless');
+      eq(G.state, 'countdown');
+      openMenu();
+      eq(document.getElementById('mEndless').disabled, true, 'not during a game');
+      closeMenu();
+    });
+
+    test('endless screens draw without errors', () => {
+      startEndless(); draw();
+      crossRoad(); draw();                       // "Road 1 crossed!"
+      run(ENDLESS_PAUSE + 0.05); draw();
+      loseLife('time'); run(1.5); draw();        // "Endless run over"
     });
   });
 

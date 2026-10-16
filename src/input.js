@@ -29,6 +29,7 @@ export function releaseKeys() {
 // Space / tap on the title or game-over screen: a practice game restarts its level; otherwise a new game.
 export function playAgain() {
   if (G.state === 'gameover' && G.mode === 'practice') newGame('practice', G.practiceLevel);
+  else if (G.state === 'gameover' && G.mode === 'endless') newGame('endless');
   else newGame();
 }
 
@@ -137,6 +138,7 @@ export function initInput() {
     if (e.key === 'k' || e.key === 'K') { openSkinPicker(); return; }
     if ((e.key === 'c' || e.key === 'C') && (G.state === 'title' || G.state === 'gameover')) { newGame('daily'); return; }
     if ((e.key === 'l' || e.key === 'L') && (G.state === 'title' || G.state === 'gameover')) { openLevelPicker(); return; }
+    if ((e.key === 'e' || e.key === 'E') && (G.state === 'title' || G.state === 'gameover')) { newGame('endless'); return; }
     if ((e.key === 'r' || e.key === 'R') && G.state === 'gameover' && G.mode === 'daily') { shareDaily(); return; }
     if (setKey(e, true) || e.key === ' ') e.preventDefault();
     if (e.key === 'm' || e.key === 'M') sound.toggleMute();

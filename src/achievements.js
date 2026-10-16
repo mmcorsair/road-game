@@ -39,6 +39,8 @@ export const ACHIEVEMENTS = [
   { id: 'nightDrive', icon: '🌃', name: 'Night drive',       desc: 'Complete the Highway at night.' },
   { id: 'storm',    icon: '⛈', name: 'Storm chaser',        desc: 'Complete a rainy night level without losing a life.' },
   { id: 'streak',   icon: '🔥', name: 'On a roll',           desc: 'Finish the daily challenge 3 days in a row.' },
+  { id: 'walk25',   icon: '🚶', name: 'Long walk',           desc: 'Cross 25 lanes in one endless run.' },
+  { id: 'marathon', icon: '🏃', name: 'Marathon',            desc: 'Cross 100 lanes in one endless run.' },
 ];
 export const ACHIEVEMENT_BY_ID = Object.fromEntries(ACHIEVEMENTS.map(a => [a.id, a]));
 export const SCORE_ACHIEVEMENTS = [[1000, 'score1k'], [5000, 'score5k'], [10000, 'score10k']];
@@ -105,6 +107,7 @@ export function achOnLifeLost() {
 }
 
 export function achOnScore() {
+  if (G.mode === 'endless') return;                      // endless scores lanes, not points
   for (const [points, id] of SCORE_ACHIEVEMENTS) if (G.score >= points) unlockAchievement(id);
 }
 
@@ -123,6 +126,7 @@ export function achOnPickup(type, p = {}) {
 
 // `level` is the level just completed.
 export function achOnLevelComplete() {
+  if (G.mode === 'endless') return;
   if (G.level === 1) unlockAchievement('first');
   if (G.levelAch.still < 0.5) unlockAchievement('nonstop');
   if (G.timeLeft >= 20) unlockAchievement('speedy');

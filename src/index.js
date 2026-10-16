@@ -21,6 +21,7 @@ import './daily.js';
 import './tutorial.js';
 import './achievements.js';
 import './practice.js';
+import './endless.js';
 import './menu.js';
 import './game.js';
 import './render.js';

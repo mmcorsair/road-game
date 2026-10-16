@@ -14,6 +14,7 @@ import { dailyLevelDone, finishDaily, startDaily } from './daily.js';
 import { updateTips } from './tutorial.js';
 import { achOnLevelComplete, achOnLifeLost, achOnNewGame, achOnNewLevel, achOnScore, achUpdate, pumpToasts } from './achievements.js';
 import { vibrate } from './input.js';
+import { ENDLESS_PAUSE, endlessLanesCrossed, endlessLevel, finishEndless, isEndless, resetEndless } from './endless.js';
 
 // newMode: 'normal', 'daily' or 'practice' (which may start at any level).
 export function newGame(newMode = 'normal', startLevel = 1) {
@@ -21,7 +22,8 @@ export function newGame(newMode = 'normal', startLevel = 1) {
   if (G.mode === 'daily') startDaily();
   G.level = startLevel;
   G.practiceLevel = startLevel;
-  G.lives = START_LIVES;
+  resetEndless();
+  G.lives = newMode === 'endless' ? 1 : START_LIVES;    // endless: one life
   G.score = 0;
   G.newHighScore = false;
   G.levelProgress = 0;
@@ -169,6 +171,13 @@ export function update(dt) {
         loseLife('car', hit);
       } else if (G.timeLeft <= 0) {
         loseLife('time');
+      } else if (G.player.y + PLAYER_SIZE / 2 < FINISH_H && isEndless()) {
+        G.endless.roads++;                       // endless: straight on to the next, faster road
+        G.state = 'levelup';
+        G.stateTimer = ENDLESS_PAUSE;
+        silenceSiren();
+        fx.sparkle(G.player.x, G.player.y, '#2ecc71');
+        sfx.levelUp();
       } else if (G.player.y + PLAYER_SIZE / 2 < FINISH_H) {
         const levelPoints = LEVEL_POINTS * G.level * (G.boss ? 2 : 1);   // boss levels: double, plus a bonus
         const bossPoints = G.boss ? BOSS_BONUS : 0;
@@ -187,6 +196,7 @@ export function update(dt) {
         const crossed = G.lanes.filter(l => G.player.y < l.y - LANE_H / 2).length;
         if (crossed > G.levelProgress) {
           addScore((crossed - G.levelProgress) * PROGRESS_POINTS, G.player.x + 28, G.player.y);
+          if (isEndless()) endlessLanesCrossed(crossed - G.levelProgress);
           G.levelProgress = crossed;
           sfx.point();
         }
@@ -206,7 +216,8 @@ export function update(dt) {
         if (G.lives > 0) { startAttempt(); G.state = 'playing'; }
         else {
           G.state = 'gameover';
-          G.newHighScore = G.mode !== 'practice' && G.score > G.hiScore;
+          G.newHighScore = !['practice', 'endless'].includes(G.mode) && G.score > G.hiScore;
+          if (isEndless()) finishEndless();
           saveHiScore();
           if (G.mode === 'daily') finishDaily();
           updateHud();
@@ -218,7 +229,18 @@ export function update(dt) {
     case 'levelup':
       updateTraffic(dt);
       G.stateTimer -= dt;
-      if (G.stateTimer <= 0) {
+      if (G.stateTimer <= 0 && isEndless()) {   // endless: no countdown, just GO
+        G.level = endlessLevel(G.endless.roads);
+        G.levelProgress = 0;
+        achOnNewLevel();
+        buildLanes();
+        resetPickups();
+        startAttempt();
+        G.state = 'playing';
+        G.goTimer = 0.7;
+        sfx.start();
+        updateHud();
+      } else if (G.stateTimer <= 0) {
         G.level++;
         G.levelProgress = 0;
         achOnNewLevel();
@@ -234,6 +256,15 @@ export function update(dt) {
 
 export function updateHud() {
   const modeIcon = { daily: '📅 ', practice: '🎯 ' }[G.mode] || '';
+  if (isEndless()) {
+    document.getElementById('level').textContent = `♾️ Road ${G.endless.roads + 1}${weatherIcons()}`;
+    document.getElementById('score').textContent = `Lanes ${G.endless.lanes}`;
+    document.getElementById('lives').textContent = '❤️'.repeat(Math.max(0, G.lives)) || '💀';
+    document.getElementById('hiscore').textContent = `Best ${Math.max(G.endlessBest, G.endless.lanes)}`;
+    document.getElementById('sound').textContent = sound.muted ? 'off' : 'on';
+    document.getElementById('muteBtn').textContent = sound.muted ? '🔇' : '🔊';
+    return;
+  }
   document.getElementById('level').textContent = `${modeIcon}Level ${G.level}${G.boss ? ' 👑' : ''}${weatherIcons()}`;
   document.getElementById('score').textContent = `Score ${G.score}`;
   document.getElementById('lives').textContent = '❤️'.repeat(Math.max(0, G.lives)) || '💀';

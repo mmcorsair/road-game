@@ -28,7 +28,7 @@ export function loadHiScore() {
   try { return Number(localStorage.getItem('roadCrossingHiScore')) || 0; } catch { return 0; }
 }
 export function saveHiScore() {
-  if (G.mode === 'practice') return;                     // practice scores don't count
+  if (G.mode === 'practice' || G.mode === 'endless') return;   // practice / endless scores don't count
   G.hiScore = Math.max(G.hiScore, G.score);
   try { localStorage.setItem('roadCrossingHiScore', G.hiScore); } catch {}
 }

@@ -122,7 +122,7 @@
     }
   }
   function saveHiScore() {
-    if (G.mode === "practice") return;
+    if (G.mode === "practice" || G.mode === "endless") return;
     G.hiScore = Math.max(G.hiScore, G.score);
     try {
       localStorage.setItem("roadCrossingHiScore", G.hiScore);
@@ -303,6 +303,43 @@
     ctx.restore();
   }
 
+  // src/endless.js
+  var ENDLESS_PAUSE = 0.9;
+  var isEndless = () => G.mode === "endless";
+  var endlessLevel = (roads) => 1 + Math.floor(roads / 2);
+  G.endless = { roads: 0, lanes: 0 };
+  G.endlessBest = (() => {
+    try {
+      return Number(localStorage.getItem("roadCrossingEndlessBest")) || 0;
+    } catch {
+      return 0;
+    }
+  })();
+  G.newEndlessBest = false;
+  function resetEndless() {
+    G.endless = { roads: 0, lanes: 0 };
+    G.newEndlessBest = false;
+  }
+  function endlessWeather() {
+    if (G.endless.roads === 0) return { rain: false, night: false };
+    return { rain: rand(0, 1) < 0.3, night: rand(0, 1) < 0.3 };
+  }
+  function endlessLanesCrossed(n) {
+    G.endless.lanes += n;
+    if (G.endless.lanes >= 25) unlockAchievement("walk25");
+    if (G.endless.lanes >= 100) unlockAchievement("marathon");
+  }
+  function finishEndless() {
+    if (G.endless.lanes > G.endlessBest) {
+      G.endlessBest = G.endless.lanes;
+      G.newEndlessBest = true;
+      try {
+        localStorage.setItem("roadCrossingEndlessBest", G.endlessBest);
+      } catch {
+      }
+    }
+  }
+
   // src/traffic.js
   function pickGap() {
     const base = Math.max(120, 250 - G.level * 15) * bossGapMul();
@@ -348,9 +385,9 @@
   function buildLanes() {
     silenceSiren();
     seedRandomness();
-    G.weather = weatherFor(G.level);
+    G.weather = isEndless() ? endlessWeather() : weatherFor(G.level);
     setupWeatherScene();
-    G.boss = bossFor(G.level);
+    G.boss = isEndless() ? null : bossFor(G.level);
     G.lanes = [];
     G.emergencyTimer = rand(EMERGENCY_MIN, EMERGENCY_MAX) / 2;
     const speedMul = (1 + 0.18 * (G.level - 1)) * bossSpeedMul();
@@ -502,6 +539,7 @@
     parade: { icon: "\u{1F389}", text: "BOSS: the Parade! Floats fill the lanes by the median \u2014 slip through a gap, rest on the grass, then the next." },
     highway: { icon: "\u{1F6E3}", text: "BOSS: the Highway! Everything is fast and changes lanes a lot. Wait for a really big gap." },
     roadworks: { icon: "\u{1F6A7}", text: "BOSS: Roadworks! Closed lanes are free of traffic, but rubble slows you \u2014 and watch the steamroller." },
+    endless: { icon: "\u267E\uFE0F", text: "Endless: one life, and every road gets a little faster. How far can you go?" },
     rain: { icon: "\u{1F327}", text: "Rain: wet brakes slip, so cars slide when they stop. Give them extra room." },
     night: { icon: "\u{1F319}", text: "Night: watch for headlights. Street lamps light the safe spots." },
     bus: { icon: "\u{1F68C}", text: "A bus stops to let passengers off. Cars swerve around it \u2014 watch the next lane!" },
@@ -579,6 +617,7 @@
       if (Math.hypot(G.player.x - G.activeTip.from.x, G.player.y - G.activeTip.from.y) > 40) dismissTip();
     }
     if (G.boss) showTip(G.boss);
+    if (G.mode === "endless") showTip("endless");
     if (G.weather.rain) showTip("rain");
     if (G.weather.night) showTip("night");
     if (G.state !== "playing") return;
@@ -750,6 +789,8 @@
     $("mQuit").hidden = !inGame;
     $("mDaily").disabled = inGame;
     $("mPractice").disabled = inGame;
+    $("mEndless").disabled = inGame;
+    $("mEndless").textContent = inGame ? "\u267E\uFE0F Endless (after this game)" : `\u267E\uFE0F Endless${G.endlessBest ? ` \xB7 best ${G.endlessBest}` : ""}`;
     $("mPractice").textContent = inGame ? "\u{1F3AF} Practice a level (after this game)" : "\u{1F3AF} Practice a level";
     $("mDaily").textContent = inGame ? "\u{1F4C5} Daily challenge (after this game)" : "\u{1F4C5} Daily challenge";
     $("mAchCount").textContent = achievementCount();
@@ -814,6 +855,11 @@
     onClick("mPractice", () => {
       closeMenu(false);
       openLevelPicker();
+    });
+    onClick("mEndless", () => {
+      closeMenu(false);
+      sound.init();
+      newGame("endless");
     });
     onClick("mSkins", () => {
       closeMenu(false);
@@ -1006,6 +1052,7 @@ ${s.best.row}${url}`;
   }
   function playAgain() {
     if (G.state === "gameover" && G.mode === "practice") newGame("practice", G.practiceLevel);
+    else if (G.state === "gameover" && G.mode === "endless") newGame("endless");
     else newGame();
   }
   function startOrResume() {
@@ -1118,6 +1165,10 @@ ${s.best.row}${url}`;
       }
       if ((e.key === "l" || e.key === "L") && (G.state === "title" || G.state === "gameover")) {
         openLevelPicker();
+        return;
+      }
+      if ((e.key === "e" || e.key === "E") && (G.state === "title" || G.state === "gameover")) {
+        newGame("endless");
         return;
       }
       if ((e.key === "r" || e.key === "R") && G.state === "gameover" && G.mode === "daily") {
@@ -1541,7 +1592,7 @@ ${s.best.row}${url}`;
     renderSkinPicker();
   }
   function checkSkinUnlocks(oldScore) {
-    if (G.mode === "practice") return;
+    if (G.mode === "practice" || G.mode === "endless") return;
     for (const skin of SKINS) {
       if (skin.score > G.hiScore && oldScore < skin.score && G.score >= skin.score) {
         G.skinsUnlockedThisGame.push(skin.name);
@@ -1710,7 +1761,9 @@ ${s.best.row}${url}`;
     { id: "hardHat", icon: "\u{1F9BA}", name: "Hard hat", desc: "Complete Roadworks without losing a life." },
     { id: "nightDrive", icon: "\u{1F303}", name: "Night drive", desc: "Complete the Highway at night." },
     { id: "storm", icon: "\u26C8", name: "Storm chaser", desc: "Complete a rainy night level without losing a life." },
-    { id: "streak", icon: "\u{1F525}", name: "On a roll", desc: "Finish the daily challenge 3 days in a row." }
+    { id: "streak", icon: "\u{1F525}", name: "On a roll", desc: "Finish the daily challenge 3 days in a row." },
+    { id: "walk25", icon: "\u{1F6B6}", name: "Long walk", desc: "Cross 25 lanes in one endless run." },
+    { id: "marathon", icon: "\u{1F3C3}", name: "Marathon", desc: "Cross 100 lanes in one endless run." }
   ];
   var ACHIEVEMENT_BY_ID = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a]));
   var SCORE_ACHIEVEMENTS = [[1e3, "score1k"], [5e3, "score5k"], [1e4, "score10k"]];
@@ -1769,6 +1822,7 @@ ${s.best.row}${url}`;
     G.levelAch.playTime = 0;
   }
   function achOnScore() {
+    if (G.mode === "endless") return;
     for (const [points, id] of SCORE_ACHIEVEMENTS) if (G.score >= points) unlockAchievement(id);
   }
   function achOnPickup(type, p = {}) {
@@ -1784,6 +1838,7 @@ ${s.best.row}${url}`;
   }
   function achOnLevelComplete() {
     var _a;
+    if (G.mode === "endless") return;
     if (G.level === 1) unlockAchievement("first");
     if (G.levelAch.still < 0.5) unlockAchievement("nonstop");
     if (G.timeLeft >= 20) unlockAchievement("speedy");
@@ -2927,10 +2982,12 @@ ${s.best.row}${url}`;
         "Grab bonuses: coins \u23F1 \u{1F6E1} \u{1F422} \u2764\uFE0F \u{1F45F} \u{1F9F2} \u{1F47B}",
         `Skin: ${currentSkin().name}  \xB7  change it in the \u2630 menu`,
         today.best ? `\u{1F4C5} Today's daily best: ${today.best.score.toLocaleString()}` : "\u{1F4C5} New daily challenge every day!",
-        touchUI() ? "Tap the road to play  \xB7  \u{1F4C5} \u2014 daily challenge" : "Space \u2014 play  \xB7  C / \u{1F4C5} \u2014 daily challenge"
+        touchUI() ? "Tap the road to play  \xB7  \u{1F4C5} \u2014 daily challenge" : "Space \u2014 play  \xB7  C \u2014 daily  \xB7  E \u2014 endless"
       );
     } else if (G.state === "paused") {
       overlay("Paused", "Press P to continue");
+    } else if (G.state === "levelup" && G.mode === "endless") {
+      overlay(`Road ${G.endless.roads} crossed!`, `${G.endless.lanes} lanes so far \u2014 keep going!`);
     } else if (G.state === "levelup") {
       overlay(
         `Level ${G.level} complete!`,
@@ -2943,7 +3000,15 @@ ${s.best.row}${url}`;
         ...G.skinsUnlockedThisGame.length ? [`\u{1F455} Unlocked: ${G.skinsUnlockedThisGame.join(", ")} \u2014 try it on!`] : [],
         ...G.gameAch.earned.length ? [G.gameAch.earned.length <= 2 ? `\u{1F3C6} New: ${G.gameAch.earned.join(", ")}` : `\u{1F3C6} ${G.gameAch.earned.length} new achievements!`] : []
       ];
-      if (G.mode === "practice") {
+      if (G.mode === "endless") {
+        overlay(
+          "Endless run over",
+          `${G.endless.lanes} lanes  \xB7  ${G.endless.roads} roads crossed`,
+          G.newEndlessBest ? "\u267E\uFE0F New best distance!" : `Best: ${G.endlessBest} lanes`,
+          ...unlockedLine,
+          touchUI() ? "Tap \u2014 run again  \xB7  \u2630 \u2014 menu" : "Space \u2014 run again  \xB7  Esc \u2014 menu"
+        );
+      } else if (G.mode === "practice") {
         overlay(
           "Practice over",
           `Started at level ${G.practiceLevel}  \xB7  reached level ${G.level}`,
@@ -3470,7 +3535,8 @@ ${s.best.row}${url}`;
     if (G.mode === "daily") startDaily();
     G.level = startLevel;
     G.practiceLevel = startLevel;
-    G.lives = START_LIVES;
+    resetEndless();
+    G.lives = newMode === "endless" ? 1 : START_LIVES;
     G.score = 0;
     G.newHighScore = false;
     G.levelProgress = 0;
@@ -3621,6 +3687,13 @@ ${s.best.row}${url}`;
           loseLife("car", hit);
         } else if (G.timeLeft <= 0) {
           loseLife("time");
+        } else if (G.player.y + PLAYER_SIZE / 2 < FINISH_H && isEndless()) {
+          G.endless.roads++;
+          G.state = "levelup";
+          G.stateTimer = ENDLESS_PAUSE;
+          silenceSiren();
+          fx.sparkle(G.player.x, G.player.y, "#2ecc71");
+          sfx.levelUp();
         } else if (G.player.y + PLAYER_SIZE / 2 < FINISH_H) {
           const levelPoints = LEVEL_POINTS * G.level * (G.boss ? 2 : 1);
           const bossPoints = G.boss ? BOSS_BONUS : 0;
@@ -3638,6 +3711,7 @@ ${s.best.row}${url}`;
           const crossed = G.lanes.filter((l) => G.player.y < l.y - LANE_H / 2).length;
           if (crossed > G.levelProgress) {
             addScore((crossed - G.levelProgress) * PROGRESS_POINTS, G.player.x + 28, G.player.y);
+            if (isEndless()) endlessLanesCrossed(crossed - G.levelProgress);
             G.levelProgress = crossed;
             sfx.point();
           }
@@ -3658,7 +3732,8 @@ ${s.best.row}${url}`;
             G.state = "playing";
           } else {
             G.state = "gameover";
-            G.newHighScore = G.mode !== "practice" && G.score > G.hiScore;
+            G.newHighScore = !["practice", "endless"].includes(G.mode) && G.score > G.hiScore;
+            if (isEndless()) finishEndless();
             saveHiScore();
             if (G.mode === "daily") finishDaily();
             updateHud();
@@ -3669,7 +3744,18 @@ ${s.best.row}${url}`;
       case "levelup":
         updateTraffic(dt);
         G.stateTimer -= dt;
-        if (G.stateTimer <= 0) {
+        if (G.stateTimer <= 0 && isEndless()) {
+          G.level = endlessLevel(G.endless.roads);
+          G.levelProgress = 0;
+          achOnNewLevel();
+          buildLanes();
+          resetPickups();
+          startAttempt();
+          G.state = "playing";
+          G.goTimer = 0.7;
+          sfx.start();
+          updateHud();
+        } else if (G.stateTimer <= 0) {
           G.level++;
           G.levelProgress = 0;
           achOnNewLevel();
@@ -3684,6 +3770,15 @@ ${s.best.row}${url}`;
   }
   function updateHud() {
     const modeIcon = { daily: "\u{1F4C5} ", practice: "\u{1F3AF} " }[G.mode] || "";
+    if (isEndless()) {
+      document.getElementById("level").textContent = `\u267E\uFE0F Road ${G.endless.roads + 1}${weatherIcons()}`;
+      document.getElementById("score").textContent = `Lanes ${G.endless.lanes}`;
+      document.getElementById("lives").textContent = "\u2764\uFE0F".repeat(Math.max(0, G.lives)) || "\u{1F480}";
+      document.getElementById("hiscore").textContent = `Best ${Math.max(G.endlessBest, G.endless.lanes)}`;
+      document.getElementById("sound").textContent = sound.muted ? "off" : "on";
+      document.getElementById("muteBtn").textContent = sound.muted ? "\u{1F507}" : "\u{1F50A}";
+      return;
+    }
     document.getElementById("level").textContent = `${modeIcon}Level ${G.level}${G.boss ? " \u{1F451}" : ""}${weatherIcons()}`;
     document.getElementById("score").textContent = `Score ${G.score}`;
     document.getElementById("lives").textContent = "\u2764\uFE0F".repeat(Math.max(0, G.lives)) || "\u{1F480}";

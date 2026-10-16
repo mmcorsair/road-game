@@ -10,7 +10,7 @@ import { closeSkinPicker, openSkinPicker, skinPickerOpen } from './skins.js';
 import { startDailyFromUI } from './daily.js';
 import { replayTips } from './tutorial.js';
 import { achievementCount, toast } from './achievements.js';
-import { updateHud } from './game.js';
+import { newGame, updateHud } from './game.js';
 import { fullscreenSupported, releaseKeys, setPaused, toggleFullscreen } from './input.js';
 import { openLevelPicker } from './practice.js';
 
@@ -50,6 +50,8 @@ export function renderMenu() {
   $('mQuit').hidden = !inGame;
   $('mDaily').disabled = inGame;
   $('mPractice').disabled = inGame;
+  $('mEndless').disabled = inGame;
+  $('mEndless').textContent = inGame ? '♾️ Endless (after this game)' : `♾️ Endless${G.endlessBest ? ` · best ${G.endlessBest}` : ''}`;
   $('mPractice').textContent = inGame ? '🎯 Practice a level (after this game)' : '🎯 Practice a level';
   $('mDaily').textContent = inGame ? '📅 Daily challenge (after this game)' : '📅 Daily challenge';
   $('mAchCount').textContent = achievementCount();
@@ -119,6 +121,7 @@ export function initMenu() {
   onClick('mResume', () => closeMenu());
   onClick('mDaily', () => { closeMenu(false); startDailyFromUI(); });
   onClick('mPractice', () => { closeMenu(false); openLevelPicker(); });
+  onClick('mEndless', () => { closeMenu(false); sound.init(); newGame('endless'); });
   onClick('mSkins', () => { closeMenu(false); openSkinPicker('skins'); });
   onClick('mAch', () => { closeMenu(false); openSkinPicker('achievements'); });
   onClick('mTips', () => { replayTips(); renderMenu(); });

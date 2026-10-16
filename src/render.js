@@ -427,9 +427,11 @@ export function draw() {
     overlay('Road Crossing', 'Cross before the clock runs out', 'Grab bonuses: coins ⏱ 🛡 🐢 ❤️ 👟 🧲 👻',
       `Skin: ${currentSkin().name}  ·  change it in the ☰ menu`,
       today.best ? `📅 Today's daily best: ${today.best.score.toLocaleString()}` : '📅 New daily challenge every day!',
-      touchUI() ? 'Tap the road to play  ·  📅 — daily challenge' : 'Space — play  ·  C / 📅 — daily challenge');
+      touchUI() ? 'Tap the road to play  ·  📅 — daily challenge' : 'Space — play  ·  C — daily  ·  E — endless');
   } else if (G.state === 'paused') {
     overlay('Paused', 'Press P to continue');
+  } else if (G.state === 'levelup' && G.mode === 'endless') {
+    overlay(`Road ${G.endless.roads} crossed!`, `${G.endless.lanes} lanes so far — keep going!`);
   } else if (G.state === 'levelup') {
     overlay(`Level ${G.level} complete!`,
       `+${G.levelBonus.levelPoints} level  ·  +${G.levelBonus.timePoints} time` +
@@ -441,7 +443,11 @@ export function draw() {
       ...(G.gameAch.earned.length ? [G.gameAch.earned.length <= 2 ? `🏆 New: ${G.gameAch.earned.join(', ')}`
                                                              : `🏆 ${G.gameAch.earned.length} new achievements!`] : []),
     ];
-    if (G.mode === 'practice') {
+    if (G.mode === 'endless') {
+      overlay('Endless run over', `${G.endless.lanes} lanes  ·  ${G.endless.roads} roads crossed`,
+        G.newEndlessBest ? '♾️ New best distance!' : `Best: ${G.endlessBest} lanes`, ...unlockedLine,
+        touchUI() ? 'Tap — run again  ·  ☰ — menu' : 'Space — run again  ·  Esc — menu');
+    } else if (G.mode === 'practice') {
       overlay('Practice over', `Started at level ${G.practiceLevel}  ·  reached level ${G.level}`,
         'Practice games don\'t count toward scores or achievements',
         touchUI() ? `Tap — level ${G.practiceLevel} again  ·  ☰ — choose another`
