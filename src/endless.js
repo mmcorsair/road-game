@@ -1,10 +1,12 @@
 // ---------- Endless mode ----------
 // One continuous run: reach the finish and a new road appears straight away, a little faster every
 // two roads, with random weather and no bosses. One life (a ❤️ pickup still adds one); scored by lanes
-// crossed. It has its own best distance and doesn't change the normal high score or unlock skins.
+// crossed. It has its own best distance and doesn't change the normal high score or unlock score skins
+// (a long run unlocks the Dinosaur skin instead).
 import { G } from './store.js';
 import { rand } from './config.js';
 import { unlockAchievement } from './achievements.js';
+import { checkEndlessSkinUnlocks } from './skins.js';
 
 export const ENDLESS_PAUSE = 0.9;      // seconds between one road and the next
 export const isEndless = () => G.mode === 'endless';
@@ -28,7 +30,9 @@ export function endlessWeather() {
 }
 
 export function endlessLanesCrossed(n) {
+  const before = G.endless.lanes;
   G.endless.lanes += n;
+  checkEndlessSkinUnlocks(before, G.endless.lanes);
   if (G.endless.lanes >= 25) unlockAchievement('walk25');
   if (G.endless.lanes >= 100) unlockAchievement('marathon');
 }

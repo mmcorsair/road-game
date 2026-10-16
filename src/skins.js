@@ -79,6 +79,28 @@ export const SKINS = [
     },
   },
   {
+    id: 'cat', name: 'Cat', score: 3000,
+    draw(g, swing, now) {
+      g.strokeStyle = '#d35400';                               // swishing tail
+      g.lineWidth = 3;
+      g.lineCap = 'round';
+      g.beginPath(); g.moveTo(0, 9); g.quadraticCurveTo(Math.sin(now / 220) * 9, 15, Math.sin(now / 220 + 1) * 6, 21); g.stroke();
+      ellipse(g, -4, -5 + swing * 0.6, 2.2, 2.8, '#d35400');   // paws
+      ellipse(g, 4, -5 - swing * 0.6, 2.2, 2.8, '#d35400');
+      ellipse(g, -4, 6 - swing * 0.6, 2.2, 2.8, '#d35400');
+      ellipse(g, 4, 6 + swing * 0.6, 2.2, 2.8, '#d35400');
+      ellipse(g, 0, 1, 6.5, 10, '#e67e22');                    // body
+      g.fillStyle = '#ba4a00';                                 // tabby stripes
+      for (const y of [-2, 2, 6]) g.fillRect(-5, y, 10, 1.5);
+      ellipse(g, 0, -9, 5, 4.5, '#e67e22');                    // head
+      g.fillStyle = '#e67e22';                                 // pointy ears
+      for (const side of [-1, 1]) {
+        g.beginPath(); g.moveTo(side * 1.5, -11); g.lineTo(side * 5, -15); g.lineTo(side * 5, -9); g.closePath(); g.fill();
+      }
+      ellipse(g, 0, -13, 1, 0.8, '#f1948a');                   // nose
+    },
+  },
+  {
     id: 'robot', name: 'Robot', score: 3500,
     draw(g, swing, now) {
       g.fillStyle = '#566573';                                 // feet
@@ -227,6 +249,43 @@ export const SKINS = [
     },
   },
   {
+    id: 'wizard', name: 'Wizard', score: 25000,
+    draw(g, swing, now) {
+      g.strokeStyle = '#7e5109';                               // staff
+      g.lineWidth = 2;
+      g.beginPath(); g.moveTo(12, 6 + swing * 0.8); g.lineTo(12, -14 + swing * 0.8); g.stroke();
+      const glow = 0.6 + 0.4 * Math.sin(now / 180);             // glowing orb
+      ellipse(g, 12, -15 + swing * 0.8, 5 * glow + 2, 5 * glow + 2, 'rgba(133,193,233,.35)');
+      ellipse(g, 12, -15 + swing * 0.8, 2.6, 2.6, '#d6eaf8');
+      ellipse(g, -5, swing, 3.5, 6, '#4a235a');
+      ellipse(g, 5, -swing, 3.5, 6, '#4a235a');
+      ellipse(g, -11, -swing * 0.8, 3, 3, '#f0c08a');
+      ellipse(g, 0, 0, 11, 8, '#6c3483');                      // robe
+      ellipse(g, 0, -1, 8.5, 8.5, '#1a237e');                  // wide hat brim, from above
+      ellipse(g, 0, -1, 3.8, 3.8, '#283593');                  // the cone's tip
+      g.fillStyle = '#f7dc6f';                                 // stars
+      for (const [x, y] of [[-5, -4], [4, -5], [-3, 4], [5, 3]]) g.fillRect(x - 0.8, y - 0.8, 1.6, 1.6);
+    },
+  },
+  {
+    id: 'superhero', name: 'Superhero', score: 30000, previewScale: 1.3, previewY: 28,
+    draw(g, swing, now) {
+      const flap = Math.sin(now / 120) * 2.5;                  // long cape billowing behind
+      g.fillStyle = '#c0392b';
+      g.beginPath(); g.moveTo(-10, -1); g.quadraticCurveTo(-14 + flap, 16, -3, 22); g.lineTo(3, 22);
+      g.quadraticCurveTo(14 + flap, 16, 10, -1); g.closePath(); g.fill();
+      ellipse(g, -5, swing, 3.5, 6, '#c0392b');                // red boots
+      ellipse(g, 5, -swing, 3.5, 6, '#c0392b');
+      ellipse(g, -11, -swing * 0.8, 3, 3, '#1f618d');          // gloves
+      ellipse(g, 11, swing * 0.8, 3, 3, '#1f618d');
+      ellipse(g, 0, 0, 11, 7, '#2e86c1');                      // blue suit
+      g.fillStyle = '#f4d03f';                                 // emblem on the chest
+      g.beginPath(); g.moveTo(0, -6); g.lineTo(3, -3.5); g.lineTo(0, -1); g.lineTo(-3, -3.5); g.closePath(); g.fill();
+      ellipse(g, 0, 0, 5.5, 5.5, '#f0c08a');
+      ellipse(g, 0, 1, 5.5, 4.5, '#17202a');                   // hair
+    },
+  },
+  {
     id: 'royal', name: 'Royal', achievement: 'tour',
     draw(g, swing, now) {
       const flow = Math.sin(now / 200) * 1.5;                  // flowing cape behind
@@ -268,6 +327,59 @@ export const SKINS = [
       ellipse(g, 3, -7, 1.6, 2.4, '#2c3e50');
     },
   },
+  {
+    id: 'dino', name: 'Dinosaur', endless: 50, previewScale: 1.25, previewY: 26,
+    draw(g, swing, now) {
+      const sway = Math.sin(now / 200) * 4;                    // tail swinging behind
+      g.fillStyle = '#239b56';
+      g.beginPath(); g.moveTo(-5, 6); g.quadraticCurveTo(sway, 16, sway * 1.4, 24); g.quadraticCurveTo(sway * 0.4 + 1, 14, 5, 6); g.closePath(); g.fill();
+      ellipse(g, -6, 3 + swing * 0.6, 3, 4, '#1e8449');        // legs
+      ellipse(g, 6, 3 - swing * 0.6, 3, 4, '#1e8449');
+      ellipse(g, 0, 1, 8, 10.5, '#28b463');                    // body
+      g.fillStyle = '#186a3b';                                 // spikes down the back
+      for (const y of [-4, 1, 6]) { g.beginPath(); g.moveTo(-2, y); g.lineTo(2, y); g.lineTo(0, y + 4); g.closePath(); g.fill(); }
+      ellipse(g, -5, -6, 1.6, 2.4, '#1e8449');                 // tiny arms
+      ellipse(g, 5, -6, 1.6, 2.4, '#1e8449');
+      ellipse(g, 0, -11, 5, 6, '#28b463');                     // head
+      ellipse(g, -2.5, -13, 1.1, 1.1, '#17202a');              // eyes
+      ellipse(g, 2.5, -13, 1.1, 1.1, '#17202a');
+    },
+  },
+  {
+    id: 'frog', name: 'Frog', achievement: 'marathon',
+    draw(g, swing) {
+      const hop = 1 + Math.abs(swing) / 40;                     // a little hop with each step
+      g.scale(hop, hop);
+      ellipse(g, -9, 6, 4, 7, '#1e8449');                      // folded back legs
+      ellipse(g, 9, 6, 4, 7, '#1e8449');
+      ellipse(g, -7, -6, 2.5, 2, '#1e8449');                   // front feet
+      ellipse(g, 7, -6, 2.5, 2, '#1e8449');
+      ellipse(g, 0, 1, 9, 9, '#27ae60');                       // body
+      ellipse(g, 0, 3, 5, 5, '#52be80');                       // lighter back
+      for (const side of [-1, 1]) {                            // bulging eyes
+        ellipse(g, side * 4, -7, 3, 3, '#fdfefe');
+        ellipse(g, side * 4, -7.6, 1.4, 1.4, '#17202a');
+      }
+    },
+  },
+  {
+    id: 'mail', name: 'Mail carrier', achievement: 'streak',
+    draw(g, swing) {
+      g.fillStyle = '#6e2c00';                                 // satchel on the side
+      g.beginPath(); g.roundRect(9, -4 + swing * 0.5, 7, 9, 2); g.fill();
+      g.fillStyle = '#fdfefe';                                 // a letter sticking out
+      g.fillRect(10.5, -6 + swing * 0.5, 4, 3);
+      ellipse(g, -5, swing, 3.5, 6, '#1b2631');
+      ellipse(g, 5, -swing, 3.5, 6, '#1b2631');
+      ellipse(g, -11, -swing * 0.8, 3, 3, '#f0c08a');
+      ellipse(g, 0, 0, 11, 7, '#2471a3');                      // uniform
+      g.strokeStyle = '#6e2c00';                               // satchel strap across the back
+      g.lineWidth = 1.6;
+      g.beginPath(); g.moveTo(-8, -4); g.lineTo(9, 3); g.stroke();
+      ellipse(g, 0, -6.5, 4.5, 2.2, '#17202a');                // cap brim, forward
+      ellipse(g, 0, -1, 5.5, 5.5, '#1a5276');                  // cap
+    },
+  },
 ];
 
 // ---------- Unlocking & choosing ----------
@@ -276,9 +388,12 @@ G.banner = null;              // { text, t } — "New skin unlocked!" message sh
 G.skinsUnlockedThisGame = [];
 
 export const bestScore = () => Math.max(G.hiScore, G.score);
-// Skins unlock at a best score, or (if they name one) with an achievement.
-export const isUnlocked = skin => (skin.achievement ? hasAchievement(skin.achievement) : skin.score <= bestScore());
-export const lockedLabel = skin => (skin.achievement ? `🔒 ${ACHIEVEMENT_BY_ID[skin.achievement].name}` : `🔒 ${skin.score.toLocaleString()} pts`);
+// Skins unlock at a best score, with an achievement, or at a best distance in endless mode.
+export const bestEndless = () => Math.max(G.endlessBest, G.mode === 'endless' ? G.endless.lanes : 0);
+export const isUnlocked = skin => (skin.achievement ? hasAchievement(skin.achievement)
+  : skin.endless ? bestEndless() >= skin.endless : skin.score <= bestScore());
+export const lockedLabel = skin => (skin.achievement ? `🔒 ${ACHIEVEMENT_BY_ID[skin.achievement].name}`
+  : skin.endless ? `🔒 ${skin.endless} endless lanes` : `🔒 ${skin.score.toLocaleString()} pts`);
 export const currentSkin = () => SKINS.find(s => s.id === G.skinId && isUnlocked(s)) || SKINS[0];
 
 export function chooseSkin(id) {
@@ -348,7 +463,7 @@ export function renderSkinPicker() {
   skinGrid.hidden = G.panelTab !== 'skins';
   document.getElementById('achList').hidden = G.panelTab !== 'achievements';
   document.getElementById('panelNote').textContent = G.panelTab === 'skins'
-    ? 'Unlock more with higher scores — and two with achievements.' : 'Achievements are saved in this browser.';
+    ? 'Unlock more with higher scores, achievements and long endless runs.' : 'Achievements are saved in this browser.';
   if (G.panelTab === 'achievements') return renderAchievements();
   skinGrid.textContent = '';
   for (const skin of SKINS) {
@@ -393,4 +508,15 @@ export function initSkins() {
     tab.addEventListener('click', () => { G.panelTab = tab.dataset.tab; renderSkinPicker(); });
   }
   skinPanel.addEventListener('click', e => { if (e.target === skinPanel) closeSkinPicker(); });
+}
+
+// Called as an endless run's distance grows: announce skins whose distance was just reached.
+export function checkEndlessSkinUnlocks(before, after) {
+  for (const skin of SKINS) {
+    if (skin.endless && G.endlessBest < skin.endless && before < skin.endless && after >= skin.endless) {
+      G.skinsUnlockedThisGame.push(skin.name);
+      toast(`🎉 New skin unlocked: ${skin.name}!`);
+      sfx.levelUp();
+    }
+  }
 }

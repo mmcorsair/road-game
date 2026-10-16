@@ -97,6 +97,7 @@ import { ENDLESS_PAUSE, endlessLanesCrossed, endlessLevel } from '../src/endless
     G.particles = [];
     G.popups = [];
     G.achievements = { unlocked: {}, bonusKinds: [], bosses: [], dailyDays: [] };
+    G.endlessBest = 0;                     // the player's own best distance must not affect results
     G.toastQueue = [];
     G.settings = { ...DEFAULT_SETTINGS };      // the player's own settings must not affect results
     if (menuOpen()) closeMenu(false);
@@ -604,6 +605,42 @@ import { ENDLESS_PAUSE, endlessLanesCrossed, endlessLevel } from '../src/endless
       assert(!skinPickerOpen(), 'closed');
     });
 
+    test('the Cat (3,000), Wizard (25,000) and Superhero (30,000)', () => {
+      const unlocked = () => SKINS.filter(isUnlocked).map(s => s.id);
+      G.score = 0;
+      G.hiScore = 2999; assert(!unlocked().includes('cat'), 'cat locked');
+      G.hiScore = 3000; assert(unlocked().includes('cat'), 'cat');
+      G.hiScore = 29999; assert(unlocked().includes('wizard') && !unlocked().includes('superhero'), 'wizard only');
+      G.hiScore = 30000; assert(unlocked().includes('superhero'), 'superhero');
+    });
+
+    test('the Dinosaur unlocks at 50 lanes in one endless run, announced mid-run', () => {
+      const dino = SKINS.find(s => s.id === 'dino');
+      G.hiScore = 1e9; G.endlessBest = 0;
+      eq(lockedLabel(dino), '🔒 50 endless lanes');
+      assert(!isUnlocked(dino), 'a huge normal score is not enough');
+      newGame('endless');
+      endlessLanesCrossed(49);
+      assert(!isUnlocked(dino), '49 lanes');
+      endlessLanesCrossed(1);
+      assert(isUnlocked(dino), 'unlocked at 50, during the run');
+      eq(G.skinsUnlockedThisGame.join(), 'Dinosaur');
+      assert([G.banner, ...G.toastQueue].some(b => b && b.text.includes('Dinosaur')), 'banner');
+      G.lives = 1; G.state = 'playing'; loseLife('time'); run(1.5);
+      newGame();                                 // later, in a normal game, it stays unlocked
+      assert(isUnlocked(dino), 'stays unlocked');
+    });
+
+    test('the Frog (Marathon) and the Mail carrier (On a roll)', () => {
+      const frog = SKINS.find(s => s.id === 'frog'), mail = SKINS.find(s => s.id === 'mail');
+      G.hiScore = 1e9;
+      assert(!isUnlocked(frog) && !isUnlocked(mail));
+      eq(lockedLabel(frog), '🔒 Marathon');
+      startPlaying();
+      unlockAchievement('marathon'); unlockAchievement('streak');
+      assert(isUnlocked(frog) && isUnlocked(mail));
+    });
+
     test('the new score skins unlock at 10,000–20,000 points', () => {
       G.hiScore = 0; G.score = 0;
       const unlocked = () => SKINS.filter(isUnlocked).map(s => s.id);
@@ -630,8 +667,9 @@ import { ENDLESS_PAUSE, endlessLanesCrossed, endlessLevel } from '../src/endless
     });
 
     test('every skin draws without errors, and its panel preview too', () => {
-      eq(SKINS.length, 14);
-      G.hiScore = 1e9; G.achievements.unlocked.tour = G.achievements.unlocked.ghostTrain = 'x';
+      eq(SKINS.length, 20);
+      G.hiScore = 1e9; G.endlessBest = 1e9;
+      for (const id of ['tour', 'ghostTrain', 'marathon', 'streak']) G.achievements.unlocked[id] = 'x';
       openSkinPicker('skins');
       drawSkinPreviews(1234);
       closeSkinPicker();
