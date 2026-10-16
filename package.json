@@ -4,6 +4,7 @@
   "description": "A browser game: guide a little man across a busy road.",
   "type": "module",
   "scripts": {
+    "dev": "node scripts/dev.mjs",
     "build": "esbuild src/index.js --bundle --format=iife --target=es2020 --sourcemap --minify --outfile=dist/game.js && esbuild tests/tests.js --bundle --format=iife --target=es2020 --sourcemap --minify --outfile=dist/tests.js",
     "watch": "esbuild src/index.js --bundle --format=iife --target=es2020 --sourcemap --minify --outfile=dist/game.js --watch",
     "test": "npm run build && tests/run.sh"
